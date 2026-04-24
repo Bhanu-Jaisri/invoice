@@ -195,32 +195,41 @@ const InvoicePreview = () => {
                     </div>
                 </div>
 
-                {/* MIDDLE (TABLE) */}
-                <div className="flex-1 mt-4 print:mt-1">
-                    <table className="w-full border-collapse">
-                        <thead>
-                            <tr className="bg-dark text-gray-900 text-sm uppercase">
-                                <th className="p-2 text-left w-12">Qty</th>
-                                <th className="p-2 text-left">Item Name</th>
-                                <th className="p-2 text-center w-24">HSN/SAC</th>
-                                <th className="p-2 text-center w-20">Unit</th>
-                                <th className="p-2 text-right w-24">Price/Unit</th>
-                                <th className="p-2 text-right w-28">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody className="text-sm text-gray-700">
-                            {invoice.items.map((item, idx) => (
-                                <tr key={idx} className="border-b border-gray-100">
-                                    <td className="p-2 font-bold">{item.quantity}</td>
-                                    <td className="p-2 font-medium">{item.description}</td>
-                                    <td className="p-2 text-center">{item.hsn_sac}</td>
-                                    <td className="p-2 text-center">{item.unit || '1'}</td>
-                                    <td className="p-2 text-right">₹{parseFloat(item.price_per_unit).toFixed(2)}</td>
-                                    <td className="p-2 text-right font-bold text-gray-900">₹{parseFloat(item.amount).toFixed(2)}</td>
+                {/* Middle - Table Area */}
+                <div className="flex-1 relative flex flex-col p-4 md:p-8 pt-0 main-content">
+                    {/* Watermark */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+                        <div className="text-[60px] font-black text-gray-300 opacity-[0.30] -rotate-[25deg] whitespace-nowrap select-none uppercase tracking-widest">
+                            NRG JAISRI PRINTERS
+                        </div>
+                    </div>
+
+                    <div className="relative" style={{ zIndex: 1 }}>
+                        <table className="w-full text-sm border-collapse">
+                            <thead>
+                                <tr className="bg-dark text-gray-900 text-sm uppercase">
+                                    <th className="p-2 text-left w-12">Qty</th>
+                                    <th className="p-2 text-left">Item Name</th>
+                                    <th className="p-2 text-center w-24">HSN/SAC</th>
+                                    <th className="p-2 text-center w-20">Unit</th>
+                                    <th className="p-2 text-right w-24">Price/Unit</th>
+                                    <th className="p-2 text-right w-28">Amount</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="text-sm text-gray-700">
+                                {invoice.items.map((item, idx) => (
+                                    <tr key={idx} className="border-b border-gray-100">
+                                        <td className="p-2 font-bold">{item.quantity}</td>
+                                        <td className="p-2 font-medium">{item.description}</td>
+                                        <td className="p-2 text-center">{item.hsn_sac}</td>
+                                        <td className="p-2 text-center">{item.unit || '1'}</td>
+                                        <td className="p-2 text-right">₹{parseFloat(item.price_per_unit).toFixed(2)}</td>
+                                        <td className="p-2 text-right font-bold text-gray-900">₹{parseFloat(item.amount).toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 {/* BOTTOM (TOTALS & SIGNATORY) */}
