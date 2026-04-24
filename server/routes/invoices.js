@@ -7,30 +7,31 @@ router.get('/next-number', async (req, res) => {
     try {
         const { date } = req.query;
         const targetDate = date ? new Date(date) : new Date();
-        const year = targetDate.getFullYear();
-        const prefix = `INV ${year} `; // Space instead of slash
-
+        // The user wants simple numbering (1, 2, 3...)
+        // We look for any existing numbers in the sequence.
+        // We use a regex to find the numeric part at the end of existing invoice numbers
+        // to support transition from "INV 2026 X" to just "X"
         const result = await db.query(
-            'SELECT invoice_number FROM invoices WHERE invoice_number LIKE $1 AND status != $2', 
-            [`${prefix}%`, 'Cancelled']
+            'SELECT invoice_number FROM invoices WHERE status != $1', 
+            ['Cancelled']
         );
-
+ 
         const existingSeqs = result.rows.map(row => {
-            const numberPart = row.invoice_number.substring(prefix.length);
-            return parseInt(numberPart, 10);
+            // Find digits at the end of the string
+            const match = row.invoice_number.match(/\d+$/);
+            return match ? parseInt(match[0], 10) : NaN;
         }).filter(seq => !isNaN(seq)).sort((a, b) => a - b);
-
-        // Find the first missing number in the sequence (1, 2, 3...)
+ 
         let nextSeq = 1;
         for (let i = 0; i < existingSeqs.length; i++) {
             if (existingSeqs[i] === nextSeq) {
                 nextSeq++;
             } else if (existingSeqs[i] > nextSeq) {
-                break; // Found a gap
+                break;
             }
         }
-
-        const nextNumber = `${prefix}${nextSeq}`;
+ 
+        const nextNumber = `${nextSeq}`;
         res.json({ nextNumber });
     } catch (err) {
         console.error(err);
