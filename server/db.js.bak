@@ -1,0 +1,95 @@
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
+
+pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+    process.exit(-1);
+});
+
+// Helper to run queries with promises (matches old signature)
+const query = async (text, params = []) => {
+    console.log(`[DB_QUERY] ${text.substring(0, 50)}${text.length > 50 ? '...' : ''} | Params: ${JSON.stringify(params)}`);
+    return pool.query(text, params);
+};
+
+// Initialization function to create tables in PostgreSQL
+const initDb = async () => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS invoices (
+                id SERIAL PRIMARY KEY,
+                invoice_number TEXT NOT NULL UNIQUE,
+                bill_number TEXT,
+                customer_name TEXT NOT NULL,
+                customer_address TEXT,
+                customer_email TEXT,
+                invoice_date DATE NOT NULL,
+                gstin TEXT,
+                total_amount DECIMAL(10, 2) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'Active'
+            )
+        `);
+
+        // Check columns to migrate
+        const columnsResult = await client.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='invoices'
+        `);
+        const existingColumns = columnsResult.rows.map(row => row.column_name);
+
+        if (!existingColumns.includes('status')) {
+            await client.query("ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT 'Active'");
+            console.log('Added status column');
+        }
+        
+        if (!existingColumns.includes('bill_number')) {
+            await client.query("ALTER TABLE invoices ADD COLUMN bill_number TEXT");
+            console.log('Added bill_number column');
+        }
+        
+        if (!existingColumns.includes('customer_email')) {
+            await client.query("ALTER TABLE invoices ADD COLUMN customer_email TEXT");
+            console.log('Added customer_email column');
+        }
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id SERIAL PRIMARY KEY,
+                invoice_id INTEGER NOT NULL REFERENCES invoices (id) ON DELETE CASCADE,
+                description TEXT NOT NULL,
+                hsn_sac TEXT,
+                quantity REAL NOT NULL,
+                unit TEXT,
+                price_per_unit DECIMAL(10, 2) NOT NULL,
+                gst_rate DECIMAL(5, 2),
+                amount DECIMAL(10, 2) NOT NULL
+            )
+        `);
+
+        await client.query('COMMIT');
+        console.log('Connected to PostgreSQL database and verified tables');
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error initializing database:', err);
+    } finally {
+        client.release();
+    }
+};
+
+module.exports = {
+    query,
+    initDb,
+    pool
+};

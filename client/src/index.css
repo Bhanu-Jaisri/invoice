@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0923b5;
+  --color-secondary: #061880;
+  --color-dark: #fac0f7;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Force Hex for Grays */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+
+  /* Force Hex for others */
+  --color-red-500: #ef4444;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-800;
+  }
+
+  /* Hide number input spinners */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
+}
