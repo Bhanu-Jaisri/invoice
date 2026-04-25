@@ -245,10 +245,11 @@ const InvoicePreview = () => {
                                 <div>
                                     <div className="text-[10px] text-primary font-bold uppercase mb-1">Bank Details</div>
                                     <div className="text-[10px] text-gray-700 leading-tight">
-                                        <strong>Bank:</strong> Tamilnad Mercantile Bank<br />
-                                        <strong>Branch:</strong> Sivakasi Palaniandavar<br />
-                                        <strong>Account Name:</strong> Jaisri Printers<br />
-                                        <strong>A/c No:</strong> 7689 | <strong>IFSC:</strong> 767
+                                        <strong>Bank:</strong> TAMILNAD MERCANTILE BANK<br />
+                                        <strong>Branch:</strong> SIVAKASI<br />
+                                        <strong>Account Name:</strong> NRG JAISRI PRINTERS<br />
+                                        <strong>A/c No:</strong> 003150050802592 <br />
+                                        <strong>IFSC:</strong> TMBL0000003
                                     </div>
                                 </div>
                                 <div>
