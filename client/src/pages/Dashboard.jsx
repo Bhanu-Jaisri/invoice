@@ -1,6 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, FileText, Trash2, XCircle } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, XCircle, Pencil } from 'lucide-react';
+
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+};
 
 const Dashboard = () => {
     const [invoices, setInvoices] = useState([]);
@@ -111,7 +120,7 @@ const Dashboard = () => {
                             ) : invoices.map((invoice) => (
                                 <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-medium text-primary">#{invoice.invoice_number}</td>
-                                    <td className="p-4">{new Date(invoice.invoice_date).toLocaleDateString()}</td>
+                                    <td className="p-4">{formatDate(invoice.invoice_date)}</td>
                                     <td className="p-4">{invoice.customer_name}</td>
                                     <td className="p-4 font-bold">₹{parseFloat(invoice.total_amount).toFixed(2)}</td>
                                     <td className="p-4">
@@ -124,6 +133,11 @@ const Dashboard = () => {
                                             <Link to={`/invoice/${invoice.id}`} className="text-gray-500 hover:text-primary" title="View">
                                                 <FileText size={20} />
                                             </Link>
+                                            {invoice.status !== 'Cancelled' && (
+                                                <Link to={`/edit/${invoice.id}`} className="text-blue-500 hover:text-blue-700" title="Edit">
+                                                    <Pencil size={20} />
+                                                </Link>
+                                            )}
                                             {invoice.status !== 'Cancelled' && (
                                                 <button
                                                     onClick={() => handleCancel(invoice.id, invoice.invoice_number)}

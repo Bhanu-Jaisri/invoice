@@ -12,6 +12,7 @@ function App() {
                 <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
                     <Route path="create" element={<CreateInvoice />} />
+                    <Route path="edit/:id" element={<CreateInvoice />} />
                     <Route path="invoice/:id" element={<InvoicePreview />} />
                 </Route>
             </Routes>

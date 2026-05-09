@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, Save } from 'lucide-react';
 
 const CreateInvoice = () => {
     const navigate = useNavigate();
+    const { id } = useParams();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         invoice_number: `INV-${Date.now()}`,
@@ -25,8 +26,32 @@ const CreateInvoice = () => {
         return item.quantity * item.price_per_unit;
     };
 
-    // Fetch next invoice number when date changes
+    // Fetch existing invoice if editing
     React.useEffect(() => {
+        if (id) {
+            setLoading(true);
+            fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.invoice_date) {
+                        data.invoice_date = data.invoice_date.split('T')[0];
+                    }
+                    if (!data.items || data.items.length === 0) {
+                        data.items = [{ description: '', hsn_sac: '', quantity: '', unit: '1', price_per_unit: '', amount: 0 }];
+                    }
+                    setFormData(data);
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error("Failed to fetch invoice", err);
+                    setLoading(false);
+                });
+        }
+    }, [id]);
+
+    // Fetch next invoice number when date changes (only if creating)
+    React.useEffect(() => {
+        if (id) return;
         const fetchNextNumber = async () => {
             try {
                 const dateParam = formData.invoice_date;
@@ -40,7 +65,7 @@ const CreateInvoice = () => {
             }
         };
         fetchNextNumber();
-    }, [formData.invoice_date]);
+    }, [formData.invoice_date, id]);
 
     // GSTIN Auto-fill Logic
     const [lookupLoading, setLookupLoading] = React.useState(false);
@@ -117,8 +142,10 @@ const CreateInvoice = () => {
         };
 
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices`, {
-                method: 'POST',
+            const endpoint = id ? `${import.meta.env.VITE_API_URL}/api/invoices/${id}` : `${import.meta.env.VITE_API_URL}/api/invoices`;
+            const method = id ? 'PUT' : 'POST';
+            const res = await fetch(endpoint, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
@@ -146,7 +173,7 @@ const CreateInvoice = () => {
 
     return (
         <div className="max-w-4xl mx-auto bg-white p-4 md:p-8 rounded-xl shadow-md border border-gray-100">
-            <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-800">Create New Invoice</h2>
+            <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-800">{id ? 'Edit Invoice' : 'Create New Invoice'}</h2>
             <form onSubmit={handleSubmit} className="space-y-6">
 
                 {/* Customer Details */}

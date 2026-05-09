@@ -129,6 +129,69 @@ router.post('/', async (req, res) => {
     }
 });
 
+// Update invoice
+router.put('/:id', async (req, res) => {
+    const client = await require('../db').pool.connect();
+    try {
+        await client.query('BEGIN');
+        const { id } = req.params;
+
+        const {
+            invoice_number,
+            bill_number,
+            customer_name,
+            customer_address,
+            customer_email,
+            invoice_date,
+            gstin,
+            subtotal,
+            cgst_rate,
+            sgst_rate,
+            igst_rate,
+            cgst_amount,
+            sgst_amount,
+            igst_amount,
+            round_off,
+            total_amount,
+            items
+        } = req.body;
+
+        await client.query(
+            `UPDATE invoices SET
+                invoice_number = $1, bill_number = $2, customer_name = $3, customer_address = $4, customer_email = $5, 
+                invoice_date = $6, gstin = $7, subtotal = $8, cgst_rate = $9, sgst_rate = $10, igst_rate = $11, 
+                cgst_amount = $12, sgst_amount = $13, igst_amount = $14, round_off = $15, total_amount = $16
+             WHERE id = $17`,
+            [
+                invoice_number, bill_number, customer_name, customer_address, customer_email, 
+                invoice_date, gstin, subtotal, cgst_rate, sgst_rate, igst_rate, 
+                cgst_amount, sgst_amount, igst_amount, round_off, total_amount, id
+            ]
+        );
+
+        // Delete existing items
+        await client.query('DELETE FROM invoice_items WHERE invoice_id = $1', [id]);
+
+        // Insert new items
+        for (const item of items) {
+            await client.query(
+                `INSERT INTO invoice_items (invoice_id, description, hsn_sac, quantity, unit, price_per_unit, gst_rate, amount)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [id, item.description, item.hsn_sac, item.quantity, item.unit, item.price_per_unit, item.gst_rate, item.amount]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.json({ message: 'Invoice updated successfully', id: id });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(err);
+        res.status(500).json({ error: 'Error updating invoice: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
 // Delete invoice
 router.delete('/:id', async (req, res) => {
     const client = await db.pool.connect();

@@ -3,6 +3,15 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import { formatCurrency } from '../utils/numberToWords';
 
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+};
+
 const InvoicePreview = () => {
     const { id } = useParams();
     const location = useLocation();
@@ -188,7 +197,7 @@ const InvoicePreview = () => {
                                 </div>
                                 <div>
                                     <div className="font-bold text-gray-600 uppercase text-[10px]">Date</div>
-                                    <div className="font-bold text-gray-800 text-sm">{new Date(invoice.invoice_date).toLocaleDateString()}</div>
+                                    <div className="font-bold text-gray-800 text-sm">{formatDate(invoice.invoice_date)}</div>
                                 </div>
                             </div>
                         </div>
@@ -199,7 +208,7 @@ const InvoicePreview = () => {
                 <div className="flex-1 relative flex flex-col p-4 md:p-8 pt-0 main-content">
                     {/* Watermark */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
-                        <div className="text-[60px] font-black text-gray-300 opacity-[0.30] -rotate-[25deg] whitespace-nowrap select-none uppercase tracking-widest">
+                        <div className="text-[50px] font-black text-gray-300 opacity-[0.30] -rotate-[25deg] whitespace-nowrap select-none uppercase tracking-widest">
                             NRG JAISRI PRINTERS
                         </div>
                     </div>
