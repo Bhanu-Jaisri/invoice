@@ -1,28 +1,25 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
+require('dotenv').config();
 
-const dbPath = path.resolve(__dirname, 'invoice_db.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Could not connect to database', err);
-        process.exit(1);
+const pool = new Pool({
+    user: process.env.PGUSER || 'postgres',
+    host: process.env.PGHOST || 'localhost',
+    database: process.env.PGDATABASE || 'nrgjaisri',
+    password: process.env.PGPASSWORD || '1234',
+    port: parseInt(process.env.PGPORT || '5432', 10)
+});
+
+const reset = async () => {
+    try {
+        await pool.query("DELETE FROM invoice_items");
+        console.log("Cleared invoice_items");
+        await pool.query("DELETE FROM invoices");
+        console.log("Cleared invoices");
+    } catch (err) {
+        console.error("Error resetting database:", err);
+    } finally {
+        await pool.end();
     }
-    console.log('Connected to database for reset');
-});
+};
 
-db.serialize(() => {
-    db.run("DELETE FROM invoice_items", (err) => {
-        if (err) console.error("Error clearing items", err);
-        else console.log("Cleared invoice_items");
-    });
-
-    db.run("DELETE FROM invoices", (err) => {
-        if (err) console.error("Error clearing invoices", err);
-        else console.log("Cleared invoices");
-    });
-});
-
-db.close((err) => {
-    if (err) console.error(err);
-    else console.log("Database connection closed");
-});
+reset();
