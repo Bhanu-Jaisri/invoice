@@ -73,10 +73,24 @@ const InvoicePreview = () => {
                 element.style.zoom = zoomLevel;
             }
 
+            const dateObj = new Date(invoice.invoice_date);
+            const dayStr = String(dateObj.getDate()).padStart(2, '0');
+            const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const yearStr = dateObj.getFullYear();
+            const dateFormatted = `${dayStr}${monthStr}${yearStr}`;
+
+            const sanitizedCustomerName = invoice.customer_name
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, '_')
+                .replace(/[^a-z0-9_]/g, '');
+
+            const pdfFilename = `${invoice.invoice_number}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
+
             const html2pdf = (await import('html2pdf.js')).default;
             const opt = {
                 margin: 5,
-                filename: `invoice-${invoice.invoice_number}.pdf`,
+                filename: pdfFilename,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: {
                     scale: 2 / zoomLevel,
