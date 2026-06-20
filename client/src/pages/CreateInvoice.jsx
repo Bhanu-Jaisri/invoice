@@ -30,7 +30,10 @@ const CreateInvoice = () => {
     React.useEffect(() => {
         if (id) {
             setLoading(true);
-            fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`)
+            const user = JSON.parse(localStorage.getItem('user'));
+            fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`, {
+                headers: { 'x-user-id': user ? user.id : '' }
+            })
                 .then(res => res.json())
                 .then(data => {
                     if (data.invoice_date) {
@@ -55,7 +58,10 @@ const CreateInvoice = () => {
         const fetchNextNumber = async () => {
             try {
                 const dateParam = formData.invoice_date;
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/next-number?date=${dateParam}`);
+                const user = JSON.parse(localStorage.getItem('user'));
+                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/next-number?date=${dateParam}`, {
+                    headers: { 'x-user-id': user ? user.id : '' }
+                });
                 if (res.ok) {
                     const data = await res.json();
                     setFormData(prev => ({ ...prev, invoice_number: data.nextNumber }));
@@ -76,7 +82,10 @@ const CreateInvoice = () => {
             if (gstin.length === 15) {
                 setLookupLoading(true);
                 try {
-                    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/customer-lookup/${gstin}`);
+                    const user = JSON.parse(localStorage.getItem('user'));
+                    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/customer-lookup/${gstin}`, {
+                        headers: { 'x-user-id': user ? user.id : '' }
+                    });
                     if (res.ok) {
                         const data = await res.json();
                         setFormData(prev => ({
@@ -144,9 +153,13 @@ const CreateInvoice = () => {
         try {
             const endpoint = id ? `${import.meta.env.VITE_API_URL}/api/invoices/${id}` : `${import.meta.env.VITE_API_URL}/api/invoices`;
             const method = id ? 'PUT' : 'POST';
+            const user = JSON.parse(localStorage.getItem('user'));
             const res = await fetch(endpoint, {
                 method: method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-user-id': user ? user.id : ''
+                },
                 body: JSON.stringify(payload)
             });
 
@@ -170,6 +183,33 @@ const CreateInvoice = () => {
     const sgstAmount = (subtotal * formData.sgst_rate) / 100;
     const igstAmount = (subtotal * formData.igst_rate) / 100;
     const totalAmount = subtotal + cgstAmount + sgstAmount + igstAmount + (Number(formData.round_off) || 0);
+
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const isProfileIncomplete = !user.office_address || !user.office_gstin || !user.office_email || !user.office_mobile || !user.office_state;
+
+    if (isProfileIncomplete) {
+        return (
+            <div className="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-lg border border-amber-200 text-center space-y-6">
+                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-gray-800">Office Setup Required</h3>
+                    <p className="text-sm text-gray-500">
+                        You must complete your office details (address, GSTIN, mobile, state, etc.) before you can create or edit invoices.
+                    </p>
+                </div>
+                <button
+                    onClick={() => navigate('/profile')}
+                    className="w-full bg-primary hover:bg-secondary text-white py-2.5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
+                >
+                    Set Up Office Details
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-4xl mx-auto bg-white p-4 md:p-8 rounded-xl shadow-md border border-gray-100">

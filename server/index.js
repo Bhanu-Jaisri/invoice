@@ -13,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 const invoiceRoutes = require('./routes/invoices');
+const authRoutes = require('./routes/auth');
 
 // Routes
 app.get('/api', (req, res) => {
@@ -22,6 +23,7 @@ app.get('/api', (req, res) => {
 // Initialize Database
 db.initDb();
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
     res.send('Invoice Dashboard API');

@@ -20,7 +20,10 @@ const InvoicePreview = () => {
     const [generating, setGenerating] = useState(false);
 
     useEffect(() => {
-        fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`)
+        const user = JSON.parse(localStorage.getItem('user'));
+        fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`, {
+            headers: { 'x-user-id': user ? user.id : '' }
+        })
             .then(res => res.json())
             .then(data => {
                 setInvoice(data);
@@ -140,6 +143,13 @@ const InvoicePreview = () => {
 
     const subTotal = invoice.items.reduce((sum, item) => sum + (item.quantity * item.price_per_unit), 0);
 
+    const officeName = invoice.office_name || 'NRG JAISRI PRINTERS';
+    const officeAddress = invoice.office_address || '8/26/D, KANNA NAGAR, Pudur Sivakasi, Naranapuram,\nVirudhunagar, Tamil Nadu - 626 189.';
+    const officeGstin = invoice.office_gstin || '33AGVPR1083P1ZK';
+    const officeEmail = invoice.office_email || 'nrgjaisriprinters@gmail.com';
+    const officeMobile = invoice.office_mobile || '9842719397';
+    const officeState = invoice.office_state || 'Tamil Nadu';
+
     return (
         <div className="max-w-5xl mx-auto mb-10">
             <div className="flex justify-between items-center mb-6 print:hidden">
@@ -168,20 +178,24 @@ const InvoicePreview = () => {
 
                         <div className="relative z-10 flex justify-between items-start">
                             <div>
-                                <h1 className="text-2xl font-bold uppercase tracking-wider text-primary mb-1 print:text-xl">NRG JAISRI PRINTERS</h1>
+                                <h1 className="text-2xl font-bold uppercase tracking-wider text-primary mb-1 print:text-xl">{officeName}</h1>
                                 <div className="text-xs text-gray-700 leading-tight max-w-md">
-                                    8/26/D, KANNA NAGAR, Pudur Sivakasi, Naranapuram,<br />
-                                    Virudhunagar, Tamil Nadu - 626 189.<br />
-                                    Mobile: 9842719397 | Email: nrgjaisriprinters@gmail.com
+                                    {officeAddress.split('\n').map((line, idx) => (
+                                        <React.Fragment key={idx}>
+                                            {line}
+                                            <br />
+                                        </React.Fragment>
+                                    ))}
+                                    Mobile: {officeMobile} | Email: {officeEmail}
                                 </div>
                                 <div className="mt-2 flex gap-4 text-xs">
                                     <div>
                                         <span className="text-gray-500 block text-xs uppercase">GSTIN</span>
-                                        <span className="font-bold text-gray-800">33AGVPR1083P1ZK</span>
+                                        <span className="font-bold text-gray-800">{officeGstin}</span>
                                     </div>
                                     <div>
                                         <span className="text-gray-500 block text-xs uppercase">State</span>
-                                        <span>Tamil Nadu</span>
+                                        <span>{officeState}</span>
                                     </div>
                                 </div>
                             </div>
@@ -223,7 +237,7 @@ const InvoicePreview = () => {
                     {/* Watermark */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
                         <div className="text-[50px] font-black text-gray-300 opacity-[0.30] -rotate-[25deg] whitespace-nowrap select-none uppercase tracking-widest">
-                            NRG JAISRI PRINTERS
+                            {officeName}
                         </div>
                     </div>
 
@@ -270,7 +284,7 @@ const InvoicePreview = () => {
                                     <div className="text-[10px] text-gray-700 leading-tight">
                                         <strong>Bank:</strong> TAMILNAD MERCANTILE BANK<br />
                                         <strong>Branch:</strong> SIVAKASI<br />
-                                        <strong>Account Name:</strong> NRG JAISRI PRINTERS<br />
+                                        <strong>Account Name:</strong> {officeName}<br />
                                         <strong>A/c No:</strong> 003150050802592 <br />
                                         <strong>IFSC:</strong> TMBL0000003
                                     </div>
@@ -327,12 +341,12 @@ const InvoicePreview = () => {
                     <div className="mt-4">
                         <div className="flex justify-end pr-4">
                             <div className="text-right">
-                                <div className="text-xs font-bold text-gray-800 mb-8 lowercase">For: <span className="uppercase">NRG JAISRI PRINTERS</span></div>
+                                <div className="text-xs font-bold text-gray-800 mb-8 lowercase">For: <span className="uppercase">{officeName}</span></div>
                                 <div className="text-[10px] text-gray-600">Authorized Signatory</div>
                             </div>
                         </div>
                         <div className="mt-8 text-center text-[10px] text-gray-400">
-                            Powered by NRG JAISRI PRINTERS
+                            Powered by {officeName}
                         </div>
                     </div>
                 </div>

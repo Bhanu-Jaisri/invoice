@@ -17,7 +17,10 @@ const Dashboard = () => {
 
     const fetchInvoices = () => {
         setLoading(true);
-        fetch(`${import.meta.env.VITE_API_URL}/api/invoices`)
+        const user = JSON.parse(localStorage.getItem('user'));
+        fetch(`${import.meta.env.VITE_API_URL}/api/invoices`, {
+            headers: { 'x-user-id': user ? user.id : '' }
+        })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -42,7 +45,11 @@ const Dashboard = () => {
         console.log(`[DASHBOARD] Delete requested for ID: ${id}, Number: ${number}`);
         // Simplified confirmation for reliability in all environments
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`, { method: 'DELETE' });
+            const user = JSON.parse(localStorage.getItem('user'));
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`, { 
+                method: 'DELETE',
+                headers: { 'x-user-id': user ? user.id : '' }
+            });
             if (res.ok) {
                 console.log(`[DASHBOARD] Successfully deleted ID: ${id}`);
                 fetchInvoices();
@@ -59,7 +66,11 @@ const Dashboard = () => {
         console.log(`[DASHBOARD] Cancel requested for ID: ${id}, Number: ${number}`);
         // Simplified confirmation for reliability in all environments
         try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}/cancel`, { method: 'PATCH' });
+            const user = JSON.parse(localStorage.getItem('user'));
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}/cancel`, { 
+                method: 'PATCH',
+                headers: { 'x-user-id': user ? user.id : '' }
+            });
             if (res.ok) {
                 console.log(`[DASHBOARD] Successfully cancelled ID: ${id}`);
                 fetchInvoices();
