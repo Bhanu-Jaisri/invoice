@@ -33,6 +33,7 @@ const initDb = async () => {
                 office_email VARCHAR(100),
                 office_mobile VARCHAR(20),
                 office_state VARCHAR(100),
+                office_theme VARCHAR(50) DEFAULT 'blue',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -44,6 +45,7 @@ const initDb = async () => {
             ALTER TABLE users ADD COLUMN IF NOT EXISTS office_email VARCHAR(100);
             ALTER TABLE users ADD COLUMN IF NOT EXISTS office_mobile VARCHAR(20);
             ALTER TABLE users ADD COLUMN IF NOT EXISTS office_state VARCHAR(100);
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS office_theme VARCHAR(50) DEFAULT 'blue';
         `);
 
         // 2. Create Invoices Table

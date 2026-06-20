@@ -19,7 +19,7 @@ router.post('/register', async (req, res) => {
         const hashedPassword = hashPassword(password);
 
         const result = await db.query(
-            'INSERT INTO users (username, password, office_name) VALUES ($1, $2, $3) RETURNING id, username, office_name',
+            'INSERT INTO users (username, password, office_name) VALUES ($1, $2, $3) RETURNING id, username, office_name, office_theme',
             [username.trim().toLowerCase(), hashedPassword, office_name.trim()]
         );
 
@@ -47,7 +47,7 @@ router.post('/login', async (req, res) => {
         const hashedPassword = hashPassword(password);
 
         const result = await db.query(
-            'SELECT id, username, password, office_name, office_address, office_gstin, office_email, office_mobile, office_state FROM users WHERE username = $1',
+            'SELECT id, username, password, office_name, office_address, office_gstin, office_email, office_mobile, office_state, office_theme FROM users WHERE username = $1',
             [username.trim().toLowerCase()]
         );
 
@@ -66,7 +66,8 @@ router.post('/login', async (req, res) => {
                 office_gstin: user.office_gstin,
                 office_email: user.office_email,
                 office_mobile: user.office_mobile,
-                office_state: user.office_state
+                office_state: user.office_state,
+                office_theme: user.office_theme
             }
         });
     } catch (err) {
@@ -84,7 +85,7 @@ router.get('/profile', async (req, res) => {
         }
 
         const result = await db.query(
-            'SELECT id, username, office_name, office_address, office_gstin, office_email, office_mobile, office_state FROM users WHERE id = $1',
+            'SELECT id, username, office_name, office_address, office_gstin, office_email, office_mobile, office_state, office_theme FROM users WHERE id = $1',
             [parseInt(userId, 10)]
         );
 
@@ -107,11 +108,13 @@ router.put('/profile', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const { office_name, office_address, office_gstin, office_email, office_mobile, office_state } = req.body;
+        const { office_name, office_address, office_gstin, office_email, office_mobile, office_state, office_theme } = req.body;
 
         if (!office_name || !office_address || !office_gstin || !office_email || !office_mobile || !office_state) {
             return res.status(400).json({ error: 'All fields are required to update office profile' });
         }
+
+        const theme = office_theme || 'blue';
 
         const result = await db.query(
             `UPDATE users SET 
@@ -120,10 +123,11 @@ router.put('/profile', async (req, res) => {
                 office_gstin = $3, 
                 office_email = $4, 
                 office_mobile = $5, 
-                office_state = $6 
-             WHERE id = $7 
-             RETURNING id, username, office_name, office_address, office_gstin, office_email, office_mobile, office_state`,
-            [office_name.trim(), office_address.trim(), office_gstin.trim().toUpperCase(), office_email.trim(), office_mobile.trim(), office_state.trim(), parseInt(userId, 10)]
+                office_state = $6,
+                office_theme = $7 
+             WHERE id = $8 
+             RETURNING id, username, office_name, office_address, office_gstin, office_email, office_mobile, office_state, office_theme`,
+            [office_name.trim(), office_address.trim(), office_gstin.trim().toUpperCase(), office_email.trim(), office_mobile.trim(), office_state.trim(), theme, parseInt(userId, 10)]
         );
 
         res.json({

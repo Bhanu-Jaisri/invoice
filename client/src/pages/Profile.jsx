@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building, MapPin, CreditCard, Mail, Phone, Map, Edit3, X } from 'lucide-react';
+import { Building, MapPin, CreditCard, Mail, Phone, Map, Edit3, X, Palette } from 'lucide-react';
+import { THEMES, applyTheme } from '../utils/theme';
 
 const Profile = () => {
     const navigate = useNavigate();
@@ -10,7 +11,8 @@ const Profile = () => {
         office_gstin: '',
         office_email: '',
         office_mobile: '',
-        office_state: ''
+        office_state: '',
+        office_theme: 'blue'
     });
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -38,8 +40,12 @@ const Profile = () => {
                     office_gstin: data.office_gstin || '',
                     office_email: data.office_email || '',
                     office_mobile: data.office_mobile || '',
-                    office_state: data.office_state || ''
+                    office_state: data.office_state || '',
+                    office_theme: data.office_theme || 'blue'
                 });
+
+                // Apply theme locally
+                applyTheme(data.office_theme || 'blue');
 
                 // If profile is incomplete, force editing mode
                 const isIncomplete = !data.office_address || !data.office_gstin || !data.office_email || !data.office_mobile || !data.office_state;
@@ -81,6 +87,7 @@ const Profile = () => {
                 localStorage.setItem('user', JSON.stringify(data.user));
                 setSuccess('Office profile updated successfully!');
                 setIsEditing(false); // Toggle back to read-only view
+                applyTheme(data.user.office_theme); // Apply the saved theme immediately
                 window.dispatchEvent(new Event('storage'));
             } else {
                 setError(data.error || 'Failed to update profile');
@@ -145,13 +152,27 @@ const Profile = () => {
                     )}
 
                     <div className="space-y-6">
-                        <div className="flex items-start space-x-4">
-                            <div className="p-2 bg-blue-50 text-primary rounded-lg shrink-0">
-                                <Building size={20} />
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-start space-x-4">
+                                <div className="p-2 bg-blue-50 text-primary rounded-lg shrink-0">
+                                    <Building size={20} />
+                                </div>
+                                <div>
+                                    <span className="block text-xs text-gray-400 font-semibold uppercase">Office Name</span>
+                                    <span className="text-base font-bold text-gray-800">{formData.office_name}</span>
+                                </div>
                             </div>
-                            <div>
-                                <span className="block text-xs text-gray-400 font-semibold uppercase">Office Name</span>
-                                <span className="text-base font-bold text-gray-800">{formData.office_name}</span>
+
+                            <div className="flex items-start space-x-4">
+                                <div className="p-2 bg-blue-50 text-primary rounded-lg shrink-0">
+                                    <Palette size={20} />
+                                </div>
+                                <div>
+                                    <span className="block text-xs text-gray-400 font-semibold uppercase">Color Theme</span>
+                                    <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mt-1 ${THEMES[formData.office_theme]?.badgeClass || 'bg-blue-50 text-blue-700'}`}>
+                                        {THEMES[formData.office_theme]?.name || 'Modern Blue'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
@@ -221,7 +242,7 @@ const Profile = () => {
                 <div className="border-b border-gray-100 pb-4 mb-6">
                     <h2 className="text-xl font-bold text-gray-800">Edit Office Details</h2>
                     <p className="text-sm text-gray-500 mt-1">
-                        Please save changes to update the headers on your tax invoices.
+                        Please save changes to update the theme and headers on your tax invoices.
                     </p>
                 </div>
 
@@ -345,11 +366,41 @@ const Profile = () => {
                         </div>
                     </div>
 
+                    {/* Color Theme Selector Grid */}
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-750 mb-2">
+                            Dashboard & Invoice Theme
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {Object.entries(THEMES).map(([key, value]) => {
+                                const isSelected = formData.office_theme === key;
+                                return (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, office_theme: key }))}
+                                        className={`flex items-center space-x-2.5 p-3 border rounded-xl transition-all text-left ${
+                                            isSelected 
+                                                ? 'border-primary ring-2 ring-primary bg-gray-50' 
+                                                : 'border-gray-200 hover:border-gray-300 bg-white'
+                                        }`}
+                                    >
+                                        <span 
+                                            className="w-5 h-5 rounded-full border border-black/10 shrink-0" 
+                                            style={{ backgroundColor: value.primary }}
+                                        />
+                                        <span className="text-xs font-semibold text-gray-705 truncate">{value.name}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
                     <div className="flex justify-end space-x-3 pt-4">
                         <button
                             type="button"
                             onClick={handleCancel}
-                            className="flex items-center space-x-1 border border-gray-350 hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl font-bold transition-all"
+                            className="flex items-center space-x-1 border border-gray-350 hover:bg-gray-55 text-gray-750 px-5 py-2.5 rounded-xl font-bold transition-all"
                         >
                             <X size={16} />
                             <span>Cancel</span>

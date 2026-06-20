@@ -66,7 +66,7 @@ router.get('/:id', async (req, res) => {
         const { id } = req.params;
         const invoiceResult = await db.query(
             `SELECT i.*, 
-                    u.office_name, u.office_address, u.office_gstin, u.office_email, u.office_mobile, u.office_state 
+                    u.office_name, u.office_address, u.office_gstin, u.office_email, u.office_mobile, u.office_state, u.office_theme 
              FROM invoices i 
              LEFT JOIN users u ON i.user_id = u.id 
              WHERE i.id = $1 AND i.user_id = $2`,

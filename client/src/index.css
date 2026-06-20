@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
-@theme {
+:root {
   --color-primary: #0923b5;
   --color-secondary: #061880;
   --color-dark: #fac0f7;
+}
+
+@theme {
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-dark: var(--color-dark);
   --color-white: #ffffff;
   --color-black: #000000;
 
@@ -43,4 +49,4 @@
   input[type=number] {
     -moz-appearance: textfield;
   }
-}
+}

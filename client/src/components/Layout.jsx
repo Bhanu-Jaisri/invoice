@@ -1,22 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, FilePlus, Menu, X, LogOut, User } from 'lucide-react';
+import { applyTheme } from '../utils/theme';
 
 const Layout = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+        const saved = localStorage.getItem('sidebar_open');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
     const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('user')) || {});
 
     useEffect(() => {
         const handleStorageChange = () => {
-            setUser(JSON.parse(localStorage.getItem('user')) || {});
+            const currentUser = JSON.parse(localStorage.getItem('user')) || {};
+            setUser(currentUser);
+            if (currentUser.office_theme) {
+                applyTheme(currentUser.office_theme);
+            }
         };
         window.addEventListener('storage', handleStorageChange);
+        handleStorageChange();
         return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+    const toggleSidebar = () => {
+        setIsSidebarOpen(prev => {
+            const next = !prev;
+            localStorage.setItem('sidebar_open', JSON.stringify(next));
+            return next;
+        });
+    };
 
     const officeName = user.office_name || 'INVOICE DASHBOARD';
     const username = user.username || 'Admin';
@@ -41,10 +56,10 @@ const Layout = () => {
 
             {/* Sidebar */}
             <div className={`
-                fixed md:static inset-y-0 left-0 z-50 w-64 bg-dark text-gray-900 flex flex-col transform transition-transform duration-300 ease-in-out
-                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
+                fixed md:static inset-y-0 left-0 z-50 bg-dark text-gray-900 flex flex-col transition-all duration-300 ease-in-out shrink-0
+                ${isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full md:translate-x-0 overflow-hidden'}
             `}>
-                <div className="p-6 border-b border-white/50 flex justify-between items-center">
+                <div className="p-6 border-b border-white/50 flex justify-between items-center shrink-0">
                     <h1 className="text-lg font-black uppercase tracking-wider text-primary truncate" title={officeName}>
                         {officeName}
                     </h1>
@@ -52,10 +67,10 @@ const Layout = () => {
                         <X size={24} />
                     </button>
                 </div>
-                <nav className="flex-1 p-4 space-y-2">
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     <Link
                         to="/"
-                        onClick={() => setIsSidebarOpen(false)}
+                        onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
                         className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname === '/' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'}`}
                     >
                         <LayoutDashboard size={20} />
@@ -63,15 +78,15 @@ const Layout = () => {
                     </Link>
                     <Link
                         to={isProfileIncomplete ? "/profile" : "/create"}
-                        onClick={() => setIsSidebarOpen(false)}
-                        className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname === '/create' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'} ${isProfileIncomplete ? 'opacity-60' : ''}`}
+                        onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname.startsWith('/create') || location.pathname.startsWith('/edit') ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'} ${isProfileIncomplete ? 'opacity-60' : ''}`}
                     >
                         <FilePlus size={20} />
                         <span>New Invoice</span>
                     </Link>
                     <Link
                         to="/profile"
-                        onClick={() => setIsSidebarOpen(false)}
+                        onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
                         className={`flex items-center justify-between p-3 rounded-lg transition-colors ${location.pathname === '/profile' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'}`}
                     >
                         <div className="flex items-center space-x-3">
@@ -87,13 +102,13 @@ const Layout = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <header className="bg-white shadow-sm p-4 flex justify-between items-center">
+                <header className="bg-white shadow-sm p-4 flex justify-between items-center shrink-0">
                     <div className="flex items-center space-x-4">
-                        <button onClick={toggleSidebar} className="md:hidden text-gray-600">
+                        <button onClick={toggleSidebar} className="text-gray-600 hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-gray-100" title="Toggle Navigation">
                             <Menu size={24} />
                         </button>
                         <h2 className="text-lg md:text-xl font-semibold text-gray-800 truncate">
-                            {location.pathname === '/' ? 'Dashboard' : location.pathname === '/create' ? 'Create Invoice' : location.pathname === '/profile' ? 'My Office Details' : 'Invoice Preview'}
+                            {location.pathname === '/' ? 'Dashboard' : location.pathname.startsWith('/create') ? 'Create Invoice' : location.pathname.startsWith('/edit') ? 'Edit Invoice' : location.pathname === '/profile' ? 'My Office Details' : 'Invoice Preview'}
                         </h2>
                     </div>
                     <div className="flex items-center space-x-4">

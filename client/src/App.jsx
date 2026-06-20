@@ -7,6 +7,7 @@ import InvoicePreview from './pages/InvoicePreview';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
+import { applyTheme } from './utils/theme';
 
 const ProtectedRoute = ({ children }) => {
     const user = localStorage.getItem('user');
@@ -17,6 +18,15 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+    React.useEffect(() => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user && user.office_theme) {
+            applyTheme(user.office_theme);
+        } else {
+            applyTheme('blue');
+        }
+    }, []);
+
     return (
         <Router>
             <Routes>

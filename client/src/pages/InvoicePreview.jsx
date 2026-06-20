@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import { formatCurrency } from '../utils/numberToWords';
+import { applyTheme } from '../utils/theme';
 
 const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -34,6 +35,20 @@ const InvoicePreview = () => {
                 setLoading(false);
             });
     }, [id]);
+
+    useEffect(() => {
+        if (invoice && invoice.office_theme) {
+            applyTheme(invoice.office_theme);
+        }
+        return () => {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user && user.office_theme) {
+                applyTheme(user.office_theme);
+            } else {
+                applyTheme('blue');
+            }
+        };
+    }, [invoice]);
 
     const handlePrint = () => {
         window.print();
