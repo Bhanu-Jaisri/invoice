@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Menu, X, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Menu, X, LogOut, User, FileText, ShoppingBag } from 'lucide-react';
 import { applyTheme } from '../utils/theme';
 
 const Layout = () => {
@@ -85,6 +85,22 @@ const Layout = () => {
                         <span>New Invoice</span>
                     </Link>
                     <Link
+                        to={isProfileIncomplete ? "/profile" : "/create-quotation"}
+                        onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname.startsWith('/create-quotation') ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'} ${isProfileIncomplete ? 'opacity-60' : ''}`}
+                    >
+                        <FileText size={20} />
+                        <span>New Quotation</span>
+                    </Link>
+                    <Link
+                        to={isProfileIncomplete ? "/profile" : "/create-order"}
+                        onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname.startsWith('/create-order') || location.pathname.startsWith('/edit-order') ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'} ${isProfileIncomplete ? 'opacity-60' : ''}`}
+                    >
+                        <ShoppingBag size={20} />
+                        <span>New Order Form</span>
+                    </Link>
+                    <Link
                         to="/profile"
                         onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
                         className={`flex items-center justify-between p-3 rounded-lg transition-colors ${location.pathname === '/profile' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'}`}
@@ -108,7 +124,25 @@ const Layout = () => {
                             <Menu size={24} />
                         </button>
                         <h2 className="text-lg md:text-xl font-semibold text-gray-800 truncate">
-                            {location.pathname === '/' ? 'Dashboard' : location.pathname.startsWith('/create') ? 'Create Invoice' : location.pathname.startsWith('/edit') ? 'Edit Invoice' : location.pathname === '/profile' ? 'My Office Details' : 'Invoice Preview'}
+                            {location.pathname === '/' 
+                                ? 'Dashboard' 
+                                : location.pathname.startsWith('/create-quotation') 
+                                ? 'Create Quotation' 
+                                : location.pathname.startsWith('/quotation') 
+                                ? 'Quotation Preview' 
+                                : location.pathname.startsWith('/create-order') 
+                                ? 'Create Order Form' 
+                                : location.pathname.startsWith('/edit-order') 
+                                ? 'Edit Order Form' 
+                                : location.pathname.startsWith('/order') 
+                                ? 'Order Preview' 
+                                : location.pathname.startsWith('/create') 
+                                ? 'Create Invoice' 
+                                : location.pathname.startsWith('/edit') 
+                                ? 'Edit Invoice' 
+                                : location.pathname === '/profile' 
+                                ? 'My Office Details' 
+                                : 'Preview'}
                         </h2>
                     </div>
                     <div className="flex items-center space-x-4">

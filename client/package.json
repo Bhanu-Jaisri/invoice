@@ -18,8 +18,12 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "html2canvas-pro": "^2.0.4",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.563.0",
     "react-router-dom": "^6.30.3"
+  },
+  "overrides": {
+    "html2canvas": "npm:html2canvas-pro@latest"
   }
 }

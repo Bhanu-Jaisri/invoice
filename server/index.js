@@ -14,6 +14,8 @@ app.use(express.json());
 
 const invoiceRoutes = require('./routes/invoices');
 const authRoutes = require('./routes/auth');
+const quotationRoutes = require('./routes/quotations');
+const orderRoutes = require('./routes/orders');
 
 // Routes
 app.get('/api', (req, res) => {
@@ -24,6 +26,8 @@ app.get('/api', (req, res) => {
 db.initDb();
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/quotations', quotationRoutes);
+app.use('/api/orders', orderRoutes);
 
 app.get('/', (req, res) => {
     res.send('Invoice Dashboard API');

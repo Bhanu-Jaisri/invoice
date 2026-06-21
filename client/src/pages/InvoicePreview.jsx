@@ -86,32 +86,41 @@ const InvoicePreview = () => {
             const targetHeight = 1080;
             let zoomLevel = 1;
 
-            if (currentHeight > targetHeight) {
-                zoomLevel = targetHeight / currentHeight;
-                element.style.zoom = zoomLevel;
+            if (currentHeight > targetHeight && currentHeight > 0) {
+                const calculatedZoom = targetHeight / currentHeight;
+                if (!isNaN(calculatedZoom) && isFinite(calculatedZoom) && calculatedZoom > 0) {
+                    zoomLevel = calculatedZoom;
+                    element.style.zoom = zoomLevel;
+                }
             }
 
-            const dateObj = new Date(invoice.invoice_date);
-            const dayStr = String(dateObj.getDate()).padStart(2, '0');
-            const monthStr = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const yearStr = dateObj.getFullYear();
+            const dateVal = invoice.invoice_date || new Date().toISOString();
+            const dateObj = new Date(dateVal);
+            const dayStr = String(isNaN(dateObj.getTime()) ? new Date().getDate() : dateObj.getDate()).padStart(2, '0');
+            const monthStr = String(isNaN(dateObj.getTime()) ? (new Date().getMonth() + 1) : (dateObj.getMonth() + 1)).padStart(2, '0');
+            const yearStr = isNaN(dateObj.getTime()) ? new Date().getFullYear() : dateObj.getFullYear();
             const dateFormatted = `${dayStr}${monthStr}${yearStr}`;
 
-            const sanitizedCustomerName = invoice.customer_name
+            const customerNameStr = invoice.customer_name || 'customer';
+            const sanitizedCustomerName = customerNameStr
                 .toLowerCase()
                 .trim()
                 .replace(/\s+/g, '_')
                 .replace(/[^a-z0-9_]/g, '');
 
-            const pdfFilename = `${invoice.invoice_number}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
+            const invoiceNumStr = invoice.invoice_number || 'invoice';
+            const pdfFilename = `${invoiceNumStr.replace(/\//g, '_')}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
 
             const html2pdf = (await import('html2pdf.js')).default;
+            
+            const validScale = (!isNaN(zoomLevel) && isFinite(zoomLevel) && zoomLevel > 0) ? (2 / zoomLevel) : 2;
+            
             const opt = {
                 margin: 5,
                 filename: pdfFilename,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: {
-                    scale: 2 / zoomLevel,
+                    scale: validScale,
                     useCORS: true,
                     letterRendering: true,
                     logging: false,
@@ -134,7 +143,7 @@ const InvoicePreview = () => {
         } catch (err) {
             console.error('[PDF] Error:', err);
             setGenerating(false);
-            alert('PDF creation failed. Please use Print -> Save as PDF.');
+            alert(`PDF creation failed: ${err.message}\n\nPlease try again or use Print -> Save as PDF.`);
         }
     };
 
