@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Search, FileText, Trash2, XCircle, Pencil, FileCheck, ShoppingBag } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, XCircle, Pencil, FileCheck, ShoppingBag, TrendingUp, Calendar, BookOpen, CreditCard } from 'lucide-react';
 
 const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -16,7 +16,7 @@ const Dashboard = () => {
     const [invoices, setInvoices] = useState([]);
     const [quotations, setQuotations] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [activeTab, setActiveTab] = useState('invoices');
+    const [activeTab, setActiveTab] = useState('overview');
     const [loading, setLoading] = useState(true);
 
     // Sync tab selection from route state redirects
@@ -216,15 +216,133 @@ const Dashboard = () => {
     const totalQuotationValue = activeQuotations.reduce((acc, q) => acc + parseFloat(q.total_amount || 0), 0);
     const avgQuotationValue = activeQuotations.length > 0 ? (totalQuotationValue / activeQuotations.length) : 0;
 
+    // Compute Product statistics from active quotations
+    let quoteDailyCalendarQty = 0;
+    let quoteDailyCalendarValue = 0;
+    let quoteMonthlyCalendarQty = 0;
+    let quoteMonthlyCalendarValue = 0;
+    let quoteDairyQty = 0;
+    let quoteDairyValue = 0;
+
+    activeQuotations.forEach(quote => {
+        const quoteItems = quote.items || [];
+        quoteItems.forEach(item => {
+            const qty = parseFloat(item.quantity) || 0;
+            const price = parseFloat(item.price_per_unit) || 0;
+            const itemAmt = qty * price;
+            const itemType = item.item_type || '';
+
+            if (itemType === 'Daily Calendar') {
+                quoteDailyCalendarQty += qty;
+                quoteDailyCalendarValue += itemAmt;
+            } else if (itemType === 'Monthly Calendar') {
+                quoteMonthlyCalendarQty += qty;
+                quoteMonthlyCalendarValue += itemAmt;
+            } else if (itemType === 'Dairy') {
+                quoteDairyQty += qty;
+                quoteDairyValue += itemAmt;
+            }
+        });
+    });
+
     // Calculate Orders Stats
     const activeOrders = orders.filter(o => o.status !== 'Cancelled');
     const totalOrderValue = activeOrders.reduce((acc, o) => acc + parseFloat(o.total_amount || 0), 0);
+
+    // Compute Product and Slip statistics from active orders
+    let dailyCalendarQty = 0;
+    let dailyCalendarValue = 0;
+    let dailyCalendarDeliveredQty = 0;
+
+    let monthlyCalendarQty = 0;
+    let monthlyCalendarValue = 0;
+    let monthlyCalendarDeliveredQty = 0;
+
+    let dairyQty = 0;
+    let dairyValue = 0;
+    let dairyDeliveredQty = 0;
+
+    const slipsMap = {};
+
+    activeOrders.forEach(order => {
+        const orderItems = order.items || [];
+        const isDelivered = order.delivery_status === 'Delivered';
+
+        orderItems.forEach(item => {
+            const qty = parseFloat(item.quantity) || 0;
+            const price = parseFloat(item.price_per_unit) || 0;
+            const itemAmt = qty * price;
+            const itemType = item.item_type || '';
+
+            if (itemType === 'Daily Calendar') {
+                dailyCalendarQty += qty;
+                dailyCalendarValue += itemAmt;
+                if (isDelivered) {
+                    dailyCalendarDeliveredQty += qty;
+                }
+            } else if (itemType === 'Monthly Calendar') {
+                monthlyCalendarQty += qty;
+                monthlyCalendarValue += itemAmt;
+                if (isDelivered) {
+                    monthlyCalendarDeliveredQty += qty;
+                }
+            } else if (itemType === 'Dairy') {
+                dairyQty += qty;
+                dairyValue += itemAmt;
+                if (isDelivered) {
+                    dairyDeliveredQty += qty;
+                }
+            }
+
+            if (item.slip_number && item.slip_number.trim() !== '') {
+                const slip = item.slip_number.trim();
+                if (!slipsMap[slip]) {
+                    slipsMap[slip] = {
+                        qty: 0,
+                        deliveredQty: 0,
+                        ordersCount: 0,
+                        orderIds: new Set(),
+                        customers: new Set()
+                    };
+                }
+                slipsMap[slip].qty += qty;
+                if (isDelivered) {
+                    slipsMap[slip].deliveredQty += qty;
+                }
+                if (!slipsMap[slip].orderIds.has(order.id)) {
+                    slipsMap[slip].orderIds.add(order.id);
+                    slipsMap[slip].ordersCount += 1;
+                }
+                if (order.customer_name) {
+                    slipsMap[slip].customers.add(order.customer_name);
+                }
+            }
+        });
+    });
+
+    const slipsList = Object.keys(slipsMap).map(slip => ({
+        slipNumber: slip,
+        qty: slipsMap[slip].qty,
+        deliveredQty: slipsMap[slip].deliveredQty,
+        ordersCount: slipsMap[slip].ordersCount,
+        customers: Array.from(slipsMap[slip].customers).join(', ')
+    })).sort((a, b) => b.qty - a.qty);
 
     return (
         <div className="space-y-6">
             {/* Upper Heading Section */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex space-x-2 border-b border-gray-250 w-full sm:w-auto">
+                    <button
+                        onClick={() => setActiveTab('overview')}
+                        className={`pb-3 px-6 text-sm font-bold border-b-2 transition-all ${
+                            activeTab === 'overview'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-505 hover:text-gray-700'
+                        }`}
+                    >
+                        Overview
+                    </button>
                     <button
                         onClick={() => setActiveTab('invoices')}
                         className={`pb-3 px-6 text-sm font-bold border-b-2 transition-all ${
@@ -276,6 +394,244 @@ const Dashboard = () => {
                     </Link>
                 )}
             </div>
+
+            {/* Overview Stats */}
+            {activeTab === 'overview' && (
+                <div className="space-y-8 animate-fadeIn">
+                    {/* Key Metrics Row */}
+                    {/* Key Metrics Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                            <div className="flex justify-between items-center">
+                                <span className="text-emerald-100 text-xs font-bold uppercase tracking-wider">Invoice Revenue (Active)</span>
+                                <TrendingUp size={24} className="text-emerald-100" />
+                            </div>
+                            <div className="text-3xl font-black mt-2">
+                                ₹{totalInvoiceRevenue.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-emerald-100/80 mt-1">From active tax invoices</div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                            <div className="flex justify-between items-center">
+                                <span className="text-blue-100 text-xs font-bold uppercase tracking-wider">Active Invoices</span>
+                                <FileText size={24} className="text-blue-100" />
+                            </div>
+                            <div className="text-3xl font-black mt-2">
+                                {activeInvoices.length}
+                            </div>
+                            <div className="text-xs text-blue-100/80 mt-1">{invoices.length - activeInvoices.length} cancelled invoices</div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                            <div className="flex justify-between items-center">
+                                <span className="text-amber-100 text-xs font-bold uppercase tracking-wider">Total Order Value (Active)</span>
+                                <CreditCard size={24} className="text-amber-100" />
+                            </div>
+                            <div className="text-3xl font-black mt-2">
+                                ₹{totalOrderValue.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-amber-100/80 mt-1">From active order forms</div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                            <div className="flex justify-between items-center">
+                                <span className="text-cyan-100 text-xs font-bold uppercase tracking-wider">Total Quotation Value (Active)</span>
+                                <CreditCard size={24} className="text-cyan-100" />
+                            </div>
+                            <div className="text-3xl font-black mt-2">
+                                ₹{totalQuotationValue.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-cyan-100/80 mt-1">From active quotations</div>
+                        </div>
+                    </div>
+
+                    {/* Breakdown and Slips Sections */}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                        {/* Column 1: Order Category Breakdown */}
+                        <div className="space-y-6">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Order Breakdown</h3>
+                            
+                            {/* Daily Calendars */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                                        <Calendar size={24} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-gray-800">Daily Calendars</div>
+                                        <div className="text-2xl font-black text-primary mt-0.5">{dailyCalendarQty.toLocaleString()} units</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-gray-400">Value</div>
+                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{dailyCalendarValue.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 text-xs">
+                                    <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-semibold">
+                                        <span className="block text-[10px] text-emerald-500 uppercase font-bold">Delivered</span>
+                                        {dailyCalendarDeliveredQty.toLocaleString()} units
+                                    </div>
+                                    <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded-xl font-semibold">
+                                        <span className="block text-[10px] text-amber-500 uppercase font-bold">Pending</span>
+                                        {(dailyCalendarQty - dailyCalendarDeliveredQty).toLocaleString()} units
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Monthly Calendars */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                        <Calendar size={24} className="rotate-90" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-gray-800">Monthly Calendars</div>
+                                        <div className="text-2xl font-black text-primary mt-0.5">{monthlyCalendarQty.toLocaleString()} units</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-gray-400">Value</div>
+                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{monthlyCalendarValue.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 text-xs">
+                                    <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-semibold">
+                                        <span className="block text-[10px] text-emerald-500 uppercase font-bold">Delivered</span>
+                                        {monthlyCalendarDeliveredQty.toLocaleString()} units
+                                    </div>
+                                    <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded-xl font-semibold">
+                                        <span className="block text-[10px] text-amber-500 uppercase font-bold">Pending</span>
+                                        {(monthlyCalendarQty - monthlyCalendarDeliveredQty).toLocaleString()} units
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Dairies */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
+                                        <BookOpen size={24} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-gray-800">Dairies</div>
+                                        <div className="text-2xl font-black text-primary mt-0.5">{dairyQty.toLocaleString()} units</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-gray-400">Value</div>
+                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{dairyValue.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 text-xs">
+                                    <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-semibold">
+                                        <span className="block text-[10px] text-emerald-500 uppercase font-bold">Delivered</span>
+                                        {dairyDeliveredQty.toLocaleString()} units
+                                    </div>
+                                    <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded-xl font-semibold">
+                                        <span className="block text-[10px] text-amber-500 uppercase font-bold">Pending</span>
+                                        {(dairyQty - dairyDeliveredQty).toLocaleString()} units
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Column 2: Quotation Category Breakdown */}
+                        <div className="space-y-6">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Quotation Breakdown</h3>
+                            
+                            {/* Daily Calendars */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-pink-50 text-pink-600 rounded-xl">
+                                        <Calendar size={24} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-gray-800">Daily Calendars</div>
+                                        <div className="text-2xl font-black text-rose-600 mt-0.5">{quoteDailyCalendarQty.toLocaleString()} units</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-gray-400">Value</div>
+                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{quoteDailyCalendarValue.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Monthly Calendars */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                                        <Calendar size={24} className="rotate-90" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-gray-800">Monthly Calendars</div>
+                                        <div className="text-2xl font-black text-rose-600 mt-0.5">{quoteMonthlyCalendarQty.toLocaleString()} units</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-gray-400">Value</div>
+                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{quoteMonthlyCalendarValue.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Dairies */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-3 bg-fuchsia-50 text-fuchsia-600 rounded-xl">
+                                        <BookOpen size={24} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-gray-800">Dairies</div>
+                                        <div className="text-2xl font-black text-rose-600 mt-0.5">{quoteDairyQty.toLocaleString()} units</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-bold text-gray-400">Value</div>
+                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{quoteDairyValue.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Column 3: Slip demands */}
+                        <div className="space-y-6">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Slip Requirements</h3>
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="sticky top-0 bg-gray-50 border-b border-gray-100 z-10">
+                                            <tr>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Slip Number</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Total Needed</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Delivered / Pending</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {slipsList.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="3" className="p-8 text-center text-gray-400 text-sm">
+                                                        No active orders with slip numbers found.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                slipsList.map((slip, index) => (
+                                                    <tr key={index} className="hover:bg-gray-50/50 transition-colors text-sm">
+                                                        <td className="p-4 font-bold text-primary">{slip.slipNumber}</td>
+                                                        <td className="p-4 font-bold text-gray-800">
+                                                            {slip.qty.toLocaleString()}
+                                                        </td>
+                                                        <td className="p-4 text-xs font-semibold space-y-1">
+                                                            <div className="text-emerald-600 font-bold">Delivered: {slip.deliveredQty.toLocaleString()}</div>
+                                                            <div className="text-amber-600 font-bold">Pending: {(slip.qty - slip.deliveredQty).toLocaleString()}</div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Invoices Stats */}
             {activeTab === 'invoices' && (
@@ -338,7 +694,8 @@ const Dashboard = () => {
             )}
 
             {/* List Table */}
-            <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
+            {activeTab !== 'overview' && (
+                <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
                 <div className="overflow-x-auto">
                     {activeTab === 'invoices' && (
                         /* Invoices Table */
@@ -594,6 +951,7 @@ const Dashboard = () => {
                     )}
                 </div>
             </div>
+            )}
         </div>
     );
 };
