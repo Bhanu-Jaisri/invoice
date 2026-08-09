@@ -18,21 +18,35 @@ router.post('/register', async (req, res) => {
 
         const hashedPassword = hashPassword(password);
 
-        const result = await db.query(
-            'INSERT INTO users (username, password, office_name) VALUES ($1, $2, $3) RETURNING id, username, office_name, office_theme',
-            [username.trim().toLowerCase(), hashedPassword, office_name.trim()]
-        );
+        let result;
+        try {
+            result = await db.query(
+                'INSERT INTO users (username, password, office_name) VALUES ($1, $2, $3) RETURNING id, username, office_name, office_theme',
+                [username.trim().toLowerCase(), hashedPassword, office_name.trim()]
+            );
+        } catch (queryErr) {
+            if (queryErr.code === '42P01') { // Table does not exist
+                console.log('Users table missing, initializing database...');
+                await db.initDb();
+                result = await db.query(
+                    'INSERT INTO users (username, password, office_name) VALUES ($1, $2, $3) RETURNING id, username, office_name, office_theme',
+                    [username.trim().toLowerCase(), hashedPassword, office_name.trim()]
+                );
+            } else {
+                throw queryErr;
+            }
+        }
 
         res.status(201).json({
             message: 'User registered successfully',
             user: result.rows[0]
         });
     } catch (err) {
-        console.error(err);
+        console.error('Registration error:', err);
         if (err.code === '23505') { // Unique key constraint in Postgres
             return res.status(400).json({ error: 'Username already exists' });
         }
-        res.status(500).json({ error: 'Server error: ' + err.message });
+        res.status(500).json({ error: 'Server error: ' + (err.message || 'Database connection error') });
     }
 });
 

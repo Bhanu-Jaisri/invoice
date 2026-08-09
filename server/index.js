@@ -29,7 +29,7 @@ app.get('/api', (req, res) => {
 });
 
 // Initialize Database
-db.initDb();
+db.initDb().catch(err => console.error('Database initialization warning:', err));
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/quotations', quotationRoutes);
