@@ -51,9 +51,9 @@ router.post('/', async (req, res) => {
     try {
         const { name, mobile, gstin, email, billing_address } = req.body;
 
-        // Validation: Customer Name & Mobile Number are required
-        if (!name || !name.trim() || !mobile || !mobile.trim()) {
-            return res.status(400).json({ error: 'Customer Name and Mobile Number are required' });
+        // Validation: Customer Name is required
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Customer Name is required' });
         }
 
         const result = await db.query(
@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
             [
                 req.userId,
                 name.trim(),
-                mobile.trim(),
+                mobile && mobile.trim() ? mobile.trim() : null,
                 gstin ? gstin.trim().toUpperCase() : null,
                 email ? email.trim() : null,
                 billing_address ? billing_address.trim() : null
@@ -86,8 +86,8 @@ router.put('/:id', async (req, res) => {
         const { id } = req.params;
         const { name, mobile, gstin, email, billing_address } = req.body;
 
-        if (!name || !name.trim() || !mobile || !mobile.trim()) {
-            return res.status(400).json({ error: 'Customer Name and Mobile Number are required' });
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Customer Name is required' });
         }
 
         const result = await db.query(
@@ -101,7 +101,7 @@ router.put('/:id', async (req, res) => {
              RETURNING *`,
             [
                 name.trim(),
-                mobile.trim(),
+                mobile && mobile.trim() ? mobile.trim() : null,
                 gstin ? gstin.trim().toUpperCase() : null,
                 email ? email.trim() : null,
                 billing_address ? billing_address.trim() : null,

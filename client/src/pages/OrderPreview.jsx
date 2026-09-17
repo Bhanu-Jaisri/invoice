@@ -70,7 +70,7 @@ const OrderPreview = () => {
 
     const handleDownload = async () => {
         try {
-            console.log('[PDF] Order PDF Generation started...');
+            console.log('[PDF] Generating exact 1-page A4 Order PDF...');
             setGenerating(true);
             const element = document.getElementById('order-content');
 
@@ -78,34 +78,6 @@ const OrderPreview = () => {
                 console.error('[PDF] Element #order-content not found!');
                 setGenerating(false);
                 return;
-            }
-
-            const originalStyle = element.getAttribute('style') || '';
-            const decorators = element.querySelectorAll('.print\\:hidden');
-            decorators.forEach(el => {
-                el.setAttribute('data-original-display', el.style.display);
-                el.style.display = 'none';
-            });
-
-            // A4 configuration
-            element.style.width = '750px';
-            element.style.minHeight = '1050px';
-            element.style.display = 'flex';
-            element.style.flexDirection = 'column';
-            element.style.margin = '0';
-            element.style.padding = '10px';
-            element.style.backgroundColor = '#ffffff';
-
-            const currentHeight = element.scrollHeight;
-            const targetHeight = 1080;
-            let zoomLevel = 1;
-
-            if (currentHeight > targetHeight && currentHeight > 0) {
-                const calculatedZoom = targetHeight / currentHeight;
-                if (!isNaN(calculatedZoom) && isFinite(calculatedZoom) && calculatedZoom > 0) {
-                    zoomLevel = calculatedZoom;
-                    element.style.zoom = zoomLevel;
-                }
             }
 
             const dateVal = order.order_date || new Date().toISOString();
@@ -125,33 +97,38 @@ const OrderPreview = () => {
             const orderNumStr = order.order_number || 'order';
             const pdfFilename = `${orderNumStr.replace(/\//g, '_')}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
 
-            const html2pdf = (await import('html2pdf.js')).default;
-            
-            const validScale = (!isNaN(zoomLevel) && isFinite(zoomLevel) && zoomLevel > 0) ? (2 / zoomLevel) : 2;
-            
-            const opt = {
-                margin: 5,
-                filename: pdfFilename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: {
-                    scale: validScale,
-                    useCORS: true,
-                    letterRendering: true,
-                    logging: false,
-                    windowWidth: 800
-                },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: 'avoid-all' }
-            };
+            const html2canvasModule = await import('html2canvas-pro');
+            const html2canvas = html2canvasModule.default || html2canvasModule;
+            const { jsPDF } = await import('jspdf');
 
-            await html2pdf().set(opt).from(element).save();
-
-            element.setAttribute('style', originalStyle);
-            element.style.zoom = '';
-            decorators.forEach(el => {
-                el.style.display = el.getAttribute('data-original-display') || '';
-                el.removeAttribute('data-original-display');
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
             });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+            const pdf = new jsPDF('portrait', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const margin = 5;
+            const printableWidth = pdfWidth - (margin * 2);
+            const printableHeight = pdfHeight - (margin * 2);
+
+            let imgHeight = (canvas.height * printableWidth) / canvas.width;
+            let imgWidth = printableWidth;
+
+            if (imgHeight > printableHeight) {
+                imgHeight = printableHeight;
+                imgWidth = (canvas.width * printableHeight) / canvas.height;
+            }
+
+            const xOffset = margin + (printableWidth - imgWidth) / 2;
+            const yOffset = margin;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, imgWidth, imgHeight);
+            pdf.save(pdfFilename);
 
             setGenerating(false);
         } catch (err) {
@@ -218,7 +195,7 @@ const OrderPreview = () => {
         });
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="w-[800px] max-w-full mx-auto space-y-6">
             {/* Top Bar Actions */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                 <Link to="/" className="flex items-center space-x-1.5 text-sm text-gray-550 hover:text-gray-800 transition-colors">
@@ -247,16 +224,15 @@ const OrderPreview = () => {
             {/* Printable Area */}
             <div
                 id="order-content"
-                className="bg-white p-6 md:p-8 rounded-2xl shadow-md border border-gray-100 relative print:p-0 print:shadow-none print:border-none"
+                className="bg-white p-6 md:p-8 rounded-2xl shadow-md border border-gray-100 relative w-[800px] max-w-full mx-auto print:p-0 print:shadow-none print:border-none"
             >
                 {/* PDF Header Stripe */}
-                <div className="h-2 bg-primary rounded-t-2xl -mt-6 -mx-6 md:-mt-8 md:-mx-8 print:hidden" />
+                <div className="h-2 bg-primary rounded-t-2xl -mt-6 -mx-6 md:-mt-8 md:-mx-8" />
 
                 {/* Content Header */}
-                <div className="flex justify-between items-start pt-6">
+                <div className="flex justify-between items-center pt-4">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black tracking-tight text-gray-850 uppercase">{order.office_name}</h1>
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mt-0.5">CUSTOMER ORDER FORM</p>
                     </div>
                     <div className="text-right">
                         <span className="bg-primary/10 text-primary font-bold text-xs px-3 py-1 rounded-full uppercase tracking-wider">
@@ -266,7 +242,7 @@ const OrderPreview = () => {
                 </div>
 
                 {/* Addresses Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 border-t border-b border-gray-100 py-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4 border-t border-b border-gray-100 py-4">
                     <div className="space-y-2">
                         <span className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Supplier Details</span>
                         <div className="text-sm space-y-1">
@@ -285,7 +261,7 @@ const OrderPreview = () => {
                             {order.customer_address && <p className="text-gray-600 whitespace-pre-line leading-relaxed">{order.customer_address}</p>}
                             {order.gstin && <p className="text-gray-500"><strong>GSTIN:</strong> {order.gstin}</p>}
                             <p className="text-gray-500"><strong>State:</strong> {order.customer_state}</p>
-                            <p className="text-gray-500"><strong>Mobile:</strong> {order.customer_mobile}</p>
+                            {order.customer_mobile && <p className="text-gray-500"><strong>Mobile:</strong> {order.customer_mobile}</p>}
                             {order.customer_email && <p className="text-gray-500"><strong>Email:</strong> {order.customer_email}</p>}
                         </div>
                     </div>
@@ -413,13 +389,44 @@ const OrderPreview = () => {
                     </table>
                 </div>
 
-                {/* Subtotals & Taxes breakdown block */}
+                {/* Subtotals, Taxes & Payment Settlement block */}
                 <div className="mt-6 flex flex-col md:flex-row justify-between gap-6 border-b border-gray-100 pb-6">
-                    <div className="max-w-md text-xs text-gray-400 space-y-1">
-                        <span className="block font-bold uppercase tracking-wider">Amount in Words</span>
-                        <p className="text-sm font-bold text-gray-700 capitalize leading-relaxed">
-                            {formatCurrency(totalAmount)}
-                        </p>
+                    <div className="max-w-md text-xs text-gray-400 space-y-4 flex-1">
+                        <div>
+                            <span className="block font-bold uppercase tracking-wider text-[10px]">Amount in Words</span>
+                            <p className="text-sm font-bold text-gray-700 capitalize leading-relaxed">
+                                {formatCurrency(totalAmount)}
+                            </p>
+                        </div>
+
+                        {/* Bank Details */}
+                        { (order.bank_name || order.account_no) && (
+                            <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-150 space-y-1">
+                                <span className="font-bold text-gray-700 uppercase tracking-wider block text-[10px] border-b border-gray-200 pb-1 mb-1">
+                                    Bank Details
+                                </span>
+                                <div className="text-[11px] text-gray-700 space-y-0.5 leading-tight">
+                                    {order.bank_name && <div><strong>Bank:</strong> {order.bank_name}</div>}
+                                    {order.bank_branch && <div><strong>Branch:</strong> {order.bank_branch}</div>}
+                                    {order.account_name && <div><strong>Account Name:</strong> {order.account_name}</div>}
+                                    {order.account_no && <div><strong>A/c No:</strong> {order.account_no}</div>}
+                                    {order.ifsc_code && <div><strong>IFSC:</strong> {order.ifsc_code}</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Terms & Conditions Below Bank Details */}
+                        <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-150 space-y-1">
+                            <span className="font-bold uppercase tracking-wider block text-gray-700 text-[10px] border-b border-gray-200 pb-1 mb-1">Terms & Conditions</span>
+                            {order.terms_conditions ? (
+                                <div className="whitespace-pre-line leading-relaxed text-gray-600 text-xs">{order.terms_conditions}</div>
+                            ) : (
+                                <div className="text-gray-600 text-xs space-y-0.5 leading-relaxed">
+                                    <p>1. Price is subject to market fluctuations unless order is finalized.</p>
+                                    <p>2. Subject to Sivakasi Jurisdiction.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="w-full md:w-80 space-y-2 text-sm text-gray-600">
@@ -449,42 +456,90 @@ const OrderPreview = () => {
                             <span>Total Amount (Excl. GST):</span>
                             <span className="text-primary text-lg">₹{totalAmount.toFixed(2)}</span>
                         </div>
+
+                        {/* Payment Settlement Summary */}
+                        {(() => {
+                            let history = [];
+                            if (order.payment_history) {
+                                try {
+                                    const parsed = typeof order.payment_history === 'string' ? JSON.parse(order.payment_history) : order.payment_history;
+                                    if (Array.isArray(parsed)) history = parsed;
+                                } catch (e) {}
+                            }
+                            
+                            let totalPaid = 0;
+                            if (history.length > 0) {
+                                totalPaid = history.reduce((sum, h) => sum + (parseFloat(h.amount) || 0), 0);
+                            } else {
+                                const adv = parseFloat(order.advance_amount || 0);
+                                const sec = parseFloat(order.second_payment_amount || 0);
+                                totalPaid = (adv + sec > 0) ? (adv + sec) : parseFloat(order.payment_amount || 0);
+                                if (adv > 0) history.push({ note: 'Advance Received', date: order.order_date, amount: adv });
+                                if (sec > 0) history.push({ note: 'Next Payment', date: order.order_date, amount: sec });
+                            }
+
+                            const pending = Math.max(0, totalAmount - totalPaid);
+                            const statusText = totalPaid <= 0 ? 'Pending' : (totalPaid >= totalAmount ? 'Fully Paid' : 'Partially Paid');
+
+                            return (
+                                <div className="mt-4 pt-3 border-t border-gray-150">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5 flex justify-between items-center">
+                                        <span>Payment Settlement Breakdown</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                                            statusText === 'Fully Paid' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                            statusText === 'Partially Paid' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-red-100 text-red-800 border border-red-200'
+                                        }`}>
+                                            {statusText}
+                                        </span>
+                                    </div>
+
+                                    {history.length > 0 ? (
+                                        <div className="bg-gray-50 rounded-xl border border-gray-150 overflow-hidden mb-2">
+                                            <table className="w-full text-left text-[11px] border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gray-100 text-gray-600 font-bold border-b border-gray-200">
+                                                        <th className="p-1.5 pl-2">Installment / Note</th>
+                                                        <th className="p-1.5 text-center">Date</th>
+                                                        <th className="p-1.5 pr-2 text-right">Amount Received</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100">
+                                                    {history.map((inst, idx) => (
+                                                        <tr key={idx}>
+                                                            <td className="p-1.5 pl-2 font-medium text-gray-700">{inst.note || `Payment #${idx + 1}`}</td>
+                                                            <td className="p-1.5 text-center text-gray-500">{formatDate(inst.date)}</td>
+                                                            <td className="p-1.5 pr-2 text-right font-bold text-emerald-700">₹{parseFloat(inst.amount || 0).toFixed(2)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : null}
+
+                                    <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-xl border border-gray-150">
+                                        <div>
+                                            <span className="block text-[10px] font-bold text-gray-400 uppercase">Total Received</span>
+                                            <span className="font-bold text-emerald-800">₹{totalPaid.toFixed(2)}</span>
+                                        </div>
+                                        <div>
+                                            <span className="block text-[10px] font-bold text-amber-600 uppercase">Remaining Pending</span>
+                                            <span className="font-bold text-amber-800">₹{pending.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
 
-                {/* Bank Details, Terms and Sign-off */}
-                <div className="mt-8 flex flex-col sm:flex-row justify-between gap-6 items-end border-t border-gray-100 pt-6">
-                    <div className="space-y-4 max-w-md">
-                        { (order.bank_name || order.account_no) && (
-                            <div>
-                                <span className="font-bold text-gray-500 uppercase tracking-wider block text-xs mb-1">Bank Details</span>
-                                <div className="text-xs text-gray-600 space-y-0.5 leading-tight">
-                                    {order.bank_name && <div><strong>Bank:</strong> {order.bank_name}</div>}
-                                    {order.bank_branch && <div><strong>Branch:</strong> {order.bank_branch}</div>}
-                                    {order.account_name && <div><strong>Account Name:</strong> {order.account_name}</div>}
-                                    {order.account_no && <div><strong>A/c No:</strong> {order.account_no}</div>}
-                                    {order.ifsc_code && <div><strong>IFSC:</strong> {order.ifsc_code}</div>}
-                                </div>
-                            </div>
-                        )}
-                        <div className="text-xs text-gray-400 space-y-1">
-                            <span className="font-bold uppercase tracking-wider block">Terms & Conditions</span>
-                            {order.terms_conditions ? (
-                                <div className="whitespace-pre-line leading-relaxed">{order.terms_conditions}</div>
-                            ) : (
-                                <>
-                                    <p>1. Price is subject to market fluctuations unless order is finalized.</p>
-                                    <p>2. Subject to Sivakasi Jurisdiction.</p>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                {/* Sign-off */}
+                <div className="mt-6 flex justify-end border-t border-gray-100 pt-4">
                     <div className="text-center w-56 space-y-8">
                         <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">
                             For {order.office_name}
                         </div>
                         <div className="border-t border-gray-300 pt-1 text-xs text-gray-500 font-semibold">
-                            Authorized Representative
+                            Authorized Signatory
                         </div>
                     </div>
                 </div>

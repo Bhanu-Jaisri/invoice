@@ -199,12 +199,43 @@ router.post('/', async (req, res) => {
             queries,
             payment_status,
             payment_amount,
+            advance_amount,
+            second_payment_amount,
+            payment_history,
             items
         } = req.body;
 
         if (!customer_name || !order_date || !items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ error: 'Customer name, order date, and at least one item are required.' });
         }
+
+        let historyArr = [];
+        if (Array.isArray(payment_history)) {
+            historyArr = payment_history;
+        } else if (typeof payment_history === 'string' && payment_history.trim() !== '') {
+            try { historyArr = JSON.parse(payment_history); } catch (e) { historyArr = []; }
+        }
+
+        let parsedAdvance = parseFloat(advance_amount || 0);
+        let parsedSecond = parseFloat(second_payment_amount || req.body.next_payment_amount || 0);
+        let computedPaid = parsedAdvance + parsedSecond;
+
+        if (historyArr.length > 0) {
+            computedPaid = historyArr.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+            parsedAdvance = parseFloat(historyArr[0]?.amount || 0);
+            parsedSecond = historyArr.slice(1).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        }
+
+        const finalPaymentAmount = (payment_amount !== undefined && payment_amount !== null && payment_amount !== '' && !advance_amount && !second_payment_amount && historyArr.length === 0) ? parseFloat(payment_amount) : computedPaid;
+        let finalPaymentStatus = payment_status || 'Not Received';
+        if (finalPaymentAmount <= 0) {
+            finalPaymentStatus = 'Not Received';
+        } else if (finalPaymentAmount >= parseFloat(total_amount)) {
+            finalPaymentStatus = 'Fully Paid';
+        } else {
+            finalPaymentStatus = 'Partially Paid';
+        }
+        const jsonHistoryStr = historyArr.length > 0 ? JSON.stringify(historyArr) : (payment_history ? String(payment_history) : null);
 
         // Start transactional block
         await db.query('BEGIN');
@@ -231,10 +262,10 @@ router.post('/', async (req, res) => {
                 subtotal, cgst_amount, sgst_amount, igst_amount, total_amount, user_id,
                 size, slip_number, if_spl, bottom_color, top_color, sheeter, source_quotation_id,
                 approval_status, delivery_status, calendars_delivered, slips_delivered,
-                queries, payment_status, payment_amount
+                queries, payment_status, payment_amount, advance_amount, second_payment_amount, payment_history
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-                $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34
+                $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
             ) RETURNING id`,
             [
                 order_number, customer_name, customer_email, customer_mobile, gstin, customer_address, customer_state || '',
@@ -242,7 +273,7 @@ router.post('/', async (req, res) => {
                 parseFloat(subtotal), parseFloat(cgst_amount || 0), parseFloat(sgst_amount || 0), parseFloat(igst_amount || 0), parseFloat(total_amount), req.userId,
                 size, slip_number, if_spl, bottom_color, top_color, sheeter, source_quotation_id || null,
                 approval_status || 'Pending', delivery_status || 'Not Delivered', parseInt(calendars_delivered || 0, 10), parseInt(slips_delivered || 0, 10),
-                queries || null, payment_status || 'Not Received', payment_amount ? parseFloat(payment_amount) : 0
+                queries || null, finalPaymentStatus, finalPaymentAmount, parsedAdvance, parsedSecond, jsonHistoryStr
             ]
         );
 
@@ -329,12 +360,43 @@ router.put('/:id', async (req, res) => {
             queries,
             payment_status,
             payment_amount,
+            advance_amount,
+            second_payment_amount,
+            payment_history,
             items
         } = req.body;
 
         if (!customer_name || !order_date || !items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ error: 'Customer name, order date, and at least one item are required.' });
         }
+
+        let historyArr = [];
+        if (Array.isArray(payment_history)) {
+            historyArr = payment_history;
+        } else if (typeof payment_history === 'string' && payment_history.trim() !== '') {
+            try { historyArr = JSON.parse(payment_history); } catch (e) { historyArr = []; }
+        }
+
+        let parsedAdvance = parseFloat(advance_amount || 0);
+        let parsedSecond = parseFloat(second_payment_amount || req.body.next_payment_amount || 0);
+        let computedPaid = parsedAdvance + parsedSecond;
+
+        if (historyArr.length > 0) {
+            computedPaid = historyArr.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+            parsedAdvance = parseFloat(historyArr[0]?.amount || 0);
+            parsedSecond = historyArr.slice(1).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        }
+
+        const finalPaymentAmount = (payment_amount !== undefined && payment_amount !== null && payment_amount !== '' && !advance_amount && !second_payment_amount && historyArr.length === 0) ? parseFloat(payment_amount) : computedPaid;
+        let finalPaymentStatus = payment_status || 'Not Received';
+        if (finalPaymentAmount <= 0) {
+            finalPaymentStatus = 'Not Received';
+        } else if (finalPaymentAmount >= parseFloat(total_amount)) {
+            finalPaymentStatus = 'Fully Paid';
+        } else {
+            finalPaymentStatus = 'Partially Paid';
+        }
+        const jsonHistoryStr = historyArr.length > 0 ? JSON.stringify(historyArr) : (payment_history ? String(payment_history) : null);
 
         // Verify ownership
         const checkRes = await db.query(
@@ -371,8 +433,8 @@ router.put('/:id', async (req, res) => {
                 cgst_amount = $16, sgst_amount = $17, igst_amount = $18, total_amount = $19,
                 size = $20, slip_number = $21, if_spl = $22, bottom_color = $23, top_color = $24, sheeter = $25,
                 source_quotation_id = $26, approval_status = $27, delivery_status = $28, calendars_delivered = $29, slips_delivered = $30,
-                queries = $31, payment_status = $32, payment_amount = $33
-             WHERE id = $34 AND user_id = $35`,
+                queries = $31, payment_status = $32, payment_amount = $33, advance_amount = $34, second_payment_amount = $35, payment_history = $36
+             WHERE id = $37 AND user_id = $38`,
             [
                 order_number, customer_name, customer_email, customer_mobile || null, gstin || null,
                 customer_address || null, customer_state || null, order_date, item_type, hsn_sac,
@@ -380,7 +442,7 @@ router.put('/:id', async (req, res) => {
                 parseFloat(cgst_amount || 0), parseFloat(sgst_amount || 0), parseFloat(igst_amount || 0), parseFloat(total_amount),
                 size, slip_number, if_spl, bottom_color, top_color, sheeter, source_quotation_id || null,
                 approval_status || 'Pending', delivery_status || 'Not Delivered', parseInt(calendars_delivered || 0, 10), parseInt(slips_delivered || 0, 10),
-                queries || null, payment_status || 'Not Received', payment_amount ? parseFloat(payment_amount) : 0,
+                queries || null, finalPaymentStatus, finalPaymentAmount, parsedAdvance, parsedSecond, jsonHistoryStr,
                 id, req.userId
             ]
         );

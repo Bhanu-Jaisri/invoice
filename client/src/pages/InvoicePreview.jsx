@@ -56,7 +56,7 @@ const InvoicePreview = () => {
 
     const handleDownload = async () => {
         try {
-            console.log('[PDF] Generation started (Dynamic Scale)...');
+            console.log('[PDF] Generating exact 1-page A4 PDF...');
             setGenerating(true);
             const element = document.getElementById('invoice-content');
 
@@ -64,34 +64,6 @@ const InvoicePreview = () => {
                 console.error('[PDF] Element #invoice-content not found!');
                 setGenerating(false);
                 return;
-            }
-
-            const originalStyle = element.getAttribute('style') || '';
-            const decorators = element.querySelectorAll('.print\\:hidden');
-            decorators.forEach(el => {
-                el.setAttribute('data-original-display', el.style.display);
-                el.style.display = 'none';
-            });
-
-            // Robust A4 setup
-            element.style.width = '750px';
-            element.style.minHeight = '1050px';
-            element.style.display = 'flex';
-            element.style.flexDirection = 'column';
-            element.style.margin = '0';
-            element.style.padding = '10px';
-            element.style.backgroundColor = '#ffffff';
-
-            const currentHeight = element.scrollHeight;
-            const targetHeight = 1080;
-            let zoomLevel = 1;
-
-            if (currentHeight > targetHeight && currentHeight > 0) {
-                const calculatedZoom = targetHeight / currentHeight;
-                if (!isNaN(calculatedZoom) && isFinite(calculatedZoom) && calculatedZoom > 0) {
-                    zoomLevel = calculatedZoom;
-                    element.style.zoom = zoomLevel;
-                }
             }
 
             const dateVal = invoice.invoice_date || new Date().toISOString();
@@ -111,33 +83,38 @@ const InvoicePreview = () => {
             const invoiceNumStr = invoice.invoice_number || 'invoice';
             const pdfFilename = `${invoiceNumStr.replace(/\//g, '_')}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
 
-            const html2pdf = (await import('html2pdf.js')).default;
-            
-            const validScale = (!isNaN(zoomLevel) && isFinite(zoomLevel) && zoomLevel > 0) ? (2 / zoomLevel) : 2;
-            
-            const opt = {
-                margin: 5,
-                filename: pdfFilename,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: {
-                    scale: validScale,
-                    useCORS: true,
-                    letterRendering: true,
-                    logging: false,
-                    windowWidth: 800
-                },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: 'avoid-all' }
-            };
+            const html2canvasModule = await import('html2canvas-pro');
+            const html2canvas = html2canvasModule.default || html2canvasModule;
+            const { jsPDF } = await import('jspdf');
 
-            await html2pdf().set(opt).from(element).save();
-
-            element.setAttribute('style', originalStyle);
-            element.style.zoom = '';
-            decorators.forEach(el => {
-                el.style.display = el.getAttribute('data-original-display') || '';
-                el.removeAttribute('data-original-display');
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
             });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.98);
+            const pdf = new jsPDF('portrait', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const margin = 5;
+            const printableWidth = pdfWidth - (margin * 2);
+            const printableHeight = pdfHeight - (margin * 2);
+
+            let imgHeight = (canvas.height * printableWidth) / canvas.width;
+            let imgWidth = printableWidth;
+
+            if (imgHeight > printableHeight) {
+                imgHeight = printableHeight;
+                imgWidth = (canvas.width * printableHeight) / canvas.height;
+            }
+
+            const xOffset = margin + (printableWidth - imgWidth) / 2;
+            const yOffset = margin;
+
+            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, imgWidth, imgHeight);
+            pdf.save(pdfFilename);
 
             setGenerating(false);
         } catch (err) {
@@ -175,7 +152,7 @@ const InvoicePreview = () => {
     const officeState = invoice.office_state || 'Tamil Nadu';
 
     return (
-        <div className="max-w-5xl mx-auto mb-10">
+        <div className="w-[800px] max-w-full mx-auto mb-10">
             <div className="flex justify-between items-center mb-6 print:hidden">
                 <Link to="/" className="flex items-center text-gray-600 hover:text-primary">
                     <ArrowLeft size={20} className="mr-2" />
@@ -193,12 +170,12 @@ const InvoicePreview = () => {
                 </div>
             </div>
 
-            <div className="bg-white p-2 print:p-0 flex flex-col" id="invoice-content" style={{ minHeight: '1050px' }}>
+            <div className="bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200 flex flex-col w-[800px] max-w-full mx-auto print:p-0 print:shadow-none print:border-none" id="invoice-content" style={{ minHeight: '1050px' }}>
                 {/* TOP MATTER */}
                 <div className="flex-none">
                     <div className="bg-dark text-gray-900 p-4 rounded-lg relative overflow-hidden mb-2 print:p-4 print:mb-2 print:rounded-none">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary transform rotate-45 translate-x-32 -translate-y-32 opacity-20 print:hidden"></div>
-                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary transform -rotate-45 -translate-x-16 translate-y-16 opacity-20 print:hidden"></div>
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary transform rotate-45 translate-x-32 -translate-y-32 opacity-20"></div>
+                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary transform -rotate-45 -translate-x-16 translate-y-16 opacity-20"></div>
 
                         <div className="relative z-10 flex justify-between items-start">
                             <div>

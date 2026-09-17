@@ -86,8 +86,8 @@ const Customers = () => {
         setSuccess('');
 
         // Required field validation
-        if (!formData.name.trim() || !formData.mobile.trim()) {
-            setError('Customer Name and Mobile Number are required.');
+        if (!formData.name.trim()) {
+            setError('Customer Name is required.');
             return;
         }
 
@@ -331,11 +331,10 @@ const Customers = () => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1">
-                                    Mobile Number <span className="text-red-500">*</span>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                    Mobile Number (Optional)
                                 </label>
                                 <input
-                                    required
                                     name="mobile"
                                     type="tel"
                                     className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"

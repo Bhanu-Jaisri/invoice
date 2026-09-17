@@ -26,7 +26,9 @@ const CreateOrder = () => {
         slips_delivered: 0,
         queries: '',
         payment_status: 'Not Received',
-        payment_amount: ''
+        payment_amount: '',
+        advance_amount: '',
+        second_payment_amount: ''
     });
 
     const [items, setItems] = useState([
@@ -49,6 +51,31 @@ const CreateOrder = () => {
             designs_total_qty: 0
         }
     ]);
+
+    const [paymentHistory, setPaymentHistory] = useState([
+        { id: 1, date: new Date().toISOString().split('T')[0], amount: '', note: 'Advance Received' }
+    ]);
+
+    const handleAddPaymentInstallment = () => {
+        setPaymentHistory(prev => [
+            ...prev,
+            {
+                id: Date.now(),
+                date: new Date().toISOString().split('T')[0],
+                amount: '',
+                note: `${prev.length === 1 ? '2nd' : prev.length === 2 ? '3rd' : `${prev.length + 1}th`} Payment`
+            }
+        ]);
+    };
+
+    const handleRemovePaymentInstallment = (idToRemove) => {
+        if (paymentHistory.length === 1) return;
+        setPaymentHistory(prev => prev.filter(p => p.id !== idToRemove));
+    };
+
+    const handlePaymentInstallmentChange = (idToUpdate, field, value) => {
+        setPaymentHistory(prev => prev.map(p => p.id === idToUpdate ? { ...p, [field]: value } : p));
+    };
 
     const isProfileIncomplete = !user.office_address || !user.office_gstin || !user.office_email || !user.office_mobile || !user.office_state;
 
@@ -138,8 +165,34 @@ const CreateOrder = () => {
                         slips_delivered: data.slips_delivered || 0,
                         queries: data.queries || '',
                         payment_status: data.payment_status || 'Not Received',
-                        payment_amount: data.payment_amount !== null && data.payment_amount !== undefined ? data.payment_amount : ''
+                        payment_amount: data.payment_amount !== null && data.payment_amount !== undefined ? data.payment_amount : '',
+                        advance_amount: data.advance_amount !== null && data.advance_amount !== undefined ? data.advance_amount : '',
+                        second_payment_amount: data.second_payment_amount !== null && data.second_payment_amount !== undefined ? data.second_payment_amount : ''
                     });
+
+                    // Parse payment history or construct from legacy fields
+                    let history = [];
+                    if (data.payment_history) {
+                        try {
+                            const parsed = typeof data.payment_history === 'string' ? JSON.parse(data.payment_history) : data.payment_history;
+                            if (Array.isArray(parsed) && parsed.length > 0) history = parsed;
+                        } catch (e) {}
+                    }
+                    if (history.length === 0) {
+                        if (data.advance_amount !== null && data.advance_amount !== undefined && parseFloat(data.advance_amount) > 0) {
+                            history.push({ id: 1, date: data.order_date || new Date().toISOString().split('T')[0], amount: String(data.advance_amount), note: 'Advance Received' });
+                        }
+                        if (data.second_payment_amount !== null && data.second_payment_amount !== undefined && parseFloat(data.second_payment_amount) > 0) {
+                            history.push({ id: 2, date: new Date().toISOString().split('T')[0], amount: String(data.second_payment_amount), note: 'Second Payment' });
+                        }
+                        if (history.length === 0 && data.payment_amount !== null && data.payment_amount !== undefined && parseFloat(data.payment_amount) > 0) {
+                            history.push({ id: 1, date: data.order_date || new Date().toISOString().split('T')[0], amount: String(data.payment_amount), note: 'Payment Received' });
+                        }
+                    }
+                    if (history.length === 0) {
+                        history = [{ id: 1, date: data.order_date || new Date().toISOString().split('T')[0], amount: '', note: 'Advance Received' }];
+                    }
+                    setPaymentHistory(history);
                     if (data.items && data.items.length > 0) {
                         const mappedItems = data.items.map(item => {
                             let category = 'Other';
@@ -218,6 +271,28 @@ const CreateOrder = () => {
                         payment_status: data.payment_status || 'Not Received',
                         payment_amount: data.payment_amount !== null && data.payment_amount !== undefined ? data.payment_amount : ''
                     }));
+
+                    let history = [];
+                    if (data.payment_history) {
+                        try {
+                            const parsed = typeof data.payment_history === 'string' ? JSON.parse(data.payment_history) : data.payment_history;
+                            if (Array.isArray(parsed) && parsed.length > 0) history = parsed;
+                        } catch (e) {}
+                    }
+                    if (history.length === 0) {
+                        if (data.advance_amount !== null && data.advance_amount !== undefined && parseFloat(data.advance_amount) > 0) {
+                            history.push({ id: 1, date: data.quotation_date || new Date().toISOString().split('T')[0], amount: String(data.advance_amount), note: 'Advance Received' });
+                        }
+                        if (data.second_payment_amount !== null && data.second_payment_amount !== undefined && parseFloat(data.second_payment_amount) > 0) {
+                            history.push({ id: 2, date: new Date().toISOString().split('T')[0], amount: String(data.second_payment_amount), note: 'Second Payment' });
+                        }
+                        if (history.length === 0 && data.payment_amount !== null && data.payment_amount !== undefined && parseFloat(data.payment_amount) > 0) {
+                            history.push({ id: 1, date: data.quotation_date || new Date().toISOString().split('T')[0], amount: String(data.payment_amount), note: 'Payment Received' });
+                        }
+                    }
+                    if (history.length > 0) {
+                        setPaymentHistory(history);
+                    }
                     if (data.items && data.items.length > 0) {
                         const mappedItems = data.items.map(item => {
                             let category = 'Other';
@@ -489,8 +564,16 @@ const CreateOrder = () => {
         e.preventDefault();
         setLoading(true);
 
+        const computedPaid = paymentHistory.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        const computedStatus = computedPaid <= 0 ? 'Not Received' : (computedPaid >= totals.total_amount ? 'Full Payment' : 'Half Payment');
+
         const payload = {
             ...formData,
+            payment_history: paymentHistory,
+            payment_amount: computedPaid,
+            advance_amount: paymentHistory[0]?.amount || '',
+            second_payment_amount: paymentHistory[1]?.amount || '',
+            payment_status: computedStatus,
             ...totals,
             items
         };
@@ -1103,6 +1186,113 @@ const CreateOrder = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Section 3.5: Payment Settlement Details */}
+                {(() => {
+                    const totalRec = paymentHistory.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+                    const remPending = Math.max(0, totals.total_amount - totalRec);
+                    const pStatus = totalRec <= 0 ? 'Pending' : (totalRec >= totals.total_amount ? 'Fully Paid' : 'Partially Paid');
+                    return (
+                        <div className="pt-6 border-t border-gray-100 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+                                    <CreditCard size={16} className="text-primary" />
+                                    Payment Settlement Details (Multiple Installments)
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={handleAddPaymentInstallment}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1 transition-all shadow-sm"
+                                >
+                                    <Plus size={14} />
+                                    <span>Add Payment Installment</span>
+                                </button>
+                            </div>
+
+                            <div className="space-y-3">
+                                {paymentHistory.map((inst, index) => (
+                                    <div key={inst.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-gray-50/80 p-3.5 rounded-xl border border-gray-200 items-end">
+                                        <div className="md:col-span-4">
+                                            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                                                Installment #{index + 1} Note / Type
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none bg-white font-semibold text-gray-800"
+                                                placeholder="e.g. Advance Received, 2nd Payment, 3rd Payment..."
+                                                value={inst.note || ''}
+                                                onChange={(e) => handlePaymentInstallmentChange(inst.id, 'note', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                                                Payment Date
+                                            </label>
+                                            <input
+                                                type="date"
+                                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none bg-white font-semibold text-gray-700"
+                                                value={inst.date || new Date().toISOString().split('T')[0]}
+                                                onChange={(e) => handlePaymentInstallmentChange(inst.id, 'date', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-4">
+                                            <label className="block text-[11px] font-bold text-emerald-700 uppercase mb-1">
+                                                Amount Received (₹)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="any"
+                                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none bg-white font-bold text-emerald-700"
+                                                placeholder="e.g. 2000"
+                                                value={inst.amount || ''}
+                                                onChange={(e) => handlePaymentInstallmentChange(inst.id, 'amount', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-1 flex justify-center pb-1">
+                                            {paymentHistory.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemovePaymentInstallment(inst.id)}
+                                                    className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                                                    title="Remove payment"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Summary Card */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-150">
+                                <div>
+                                    <span className="block text-xs font-semibold text-gray-500 mb-0.5">Total Received Amount</span>
+                                    <span className="text-base font-extrabold text-emerald-800">
+                                        ₹{totalRec.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="block text-xs font-semibold text-gray-500 mb-0.5">Remaining Pending Balance</span>
+                                    <span className={`text-base font-extrabold ${remPending > 0 ? 'text-amber-800' : 'text-green-800'}`}>
+                                        ₹{remPending.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between md:justify-end">
+                                    <span className="text-xs font-semibold text-gray-500 mr-2">Payment Status:</span>
+                                    <span className={`text-xs uppercase font-extrabold px-3 py-1 rounded-full border ${
+                                        pStatus === 'Fully Paid' ? 'bg-green-100 text-green-800 border-green-300' :
+                                        pStatus === 'Partially Paid' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                                        'bg-red-100 text-red-800 border-red-300'
+                                    }`}>
+                                        {pStatus}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Section 4: Action Buttons */}
                 <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100">

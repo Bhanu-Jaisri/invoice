@@ -194,7 +194,9 @@ const initDb = async () => {
             slips_delivered INTEGER DEFAULT 0,
             queries TEXT,
             payment_status TEXT DEFAULT 'Not Received',
-            payment_amount DECIMAL(10, 2) DEFAULT 0
+            payment_amount DECIMAL(10, 2) DEFAULT 0,
+            advance_amount DECIMAL(10, 2) DEFAULT 0,
+            second_payment_amount DECIMAL(10, 2) DEFAULT 0
         );
     `);
 
@@ -260,7 +262,9 @@ const initDb = async () => {
             slips_delivered INTEGER DEFAULT 0,
             queries TEXT,
             payment_status TEXT DEFAULT 'Not Received',
-            payment_amount DECIMAL(10, 2) DEFAULT 0
+            payment_amount DECIMAL(10, 2) DEFAULT 0,
+            advance_amount DECIMAL(10, 2) DEFAULT 0,
+            second_payment_amount DECIMAL(10, 2) DEFAULT 0
         );
     `);
 
@@ -285,6 +289,18 @@ const initDb = async () => {
             designs TEXT,
             designs_total_qty REAL
         );
+    `);
+
+    // ALTER migrations for existing database tables
+    await runQuery('Add advance_amount & second_payment_amount & payment_history to quotations', `
+        ALTER TABLE quotations ADD COLUMN IF NOT EXISTS advance_amount DECIMAL(10, 2) DEFAULT 0;
+        ALTER TABLE quotations ADD COLUMN IF NOT EXISTS second_payment_amount DECIMAL(10, 2) DEFAULT 0;
+        ALTER TABLE quotations ADD COLUMN IF NOT EXISTS payment_history TEXT;
+    `);
+    await runQuery('Add advance_amount & second_payment_amount & payment_history to orders', `
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS advance_amount DECIMAL(10, 2) DEFAULT 0;
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS second_payment_amount DECIMAL(10, 2) DEFAULT 0;
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_history TEXT;
     `);
 
     console.log('Connected to PostgreSQL database and verified all tables');
