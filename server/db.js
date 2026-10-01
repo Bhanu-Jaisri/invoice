@@ -73,7 +73,7 @@ const initDb = async () => {
             id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             name VARCHAR(255) NOT NULL,
-            mobile VARCHAR(50) NOT NULL,
+            mobile VARCHAR(50),
             gstin VARCHAR(50),
             email VARCHAR(100),
             billing_address TEXT,
@@ -301,6 +301,9 @@ const initDb = async () => {
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS advance_amount DECIMAL(10, 2) DEFAULT 0;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS second_payment_amount DECIMAL(10, 2) DEFAULT 0;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_history TEXT;
+    `);
+    await runQuery('Allow NULL for customers mobile', `
+        ALTER TABLE customers ALTER COLUMN mobile DROP NOT NULL;
     `);
 
     console.log('Connected to PostgreSQL database and verified all tables');

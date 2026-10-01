@@ -101,6 +101,15 @@ const OrderPreview = () => {
             const html2canvas = html2canvasModule.default || html2canvasModule;
             const { jsPDF } = await import('jspdf');
 
+            // Temporarily strip card border, shadow, and rounded corners for clean full-page PDF
+            const origShadow = element.style.boxShadow;
+            const origBorder = element.style.border;
+            const origRadius = element.style.borderRadius;
+
+            element.style.boxShadow = 'none';
+            element.style.border = 'none';
+            element.style.borderRadius = '0';
+
             const canvas = await html2canvas(element, {
                 scale: 2,
                 useCORS: true,
@@ -108,24 +117,26 @@ const OrderPreview = () => {
                 backgroundColor: '#ffffff'
             });
 
+            // Restore original styles
+            element.style.boxShadow = origShadow;
+            element.style.border = origBorder;
+            element.style.borderRadius = origRadius;
+
             const imgData = canvas.toDataURL('image/jpeg', 0.98);
             const pdf = new jsPDF('portrait', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
-            const margin = 5;
-            const printableWidth = pdfWidth - (margin * 2);
-            const printableHeight = pdfHeight - (margin * 2);
 
-            let imgHeight = (canvas.height * printableWidth) / canvas.width;
-            let imgWidth = printableWidth;
+            let imgWidth = pdfWidth;
+            let imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-            if (imgHeight > printableHeight) {
-                imgHeight = printableHeight;
-                imgWidth = (canvas.width * printableHeight) / canvas.height;
+            if (imgHeight > pdfHeight) {
+                imgHeight = pdfHeight;
+                imgWidth = (canvas.width * pdfHeight) / canvas.height;
             }
 
-            const xOffset = margin + (printableWidth - imgWidth) / 2;
-            const yOffset = margin;
+            const xOffset = (pdfWidth - imgWidth) / 2;
+            const yOffset = 0;
 
             pdf.addImage(imgData, 'JPEG', xOffset, yOffset, imgWidth, imgHeight);
             pdf.save(pdfFilename);

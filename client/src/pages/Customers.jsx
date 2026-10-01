@@ -234,10 +234,14 @@ const Customers = () => {
                                             {customer.name}
                                         </td>
                                         <td className="p-4 text-gray-700 font-medium">
-                                            <div className="flex items-center space-x-1.5">
-                                                <Phone size={14} className="text-gray-400 shrink-0" />
-                                                <span>{customer.mobile}</span>
-                                            </div>
+                                            {customer.mobile ? (
+                                                <div className="flex items-center space-x-1.5">
+                                                    <Phone size={14} className="text-gray-400 shrink-0" />
+                                                    <span>{customer.mobile}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-350 text-[11px] italic">-</span>
+                                            )}
                                         </td>
                                         <td className="p-4 text-gray-600">
                                             {customer.gstin ? (

@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    mobile VARCHAR(50) NOT NULL,
+    mobile VARCHAR(50),
     gstin VARCHAR(50),
     email VARCHAR(100),
     billing_address TEXT,
