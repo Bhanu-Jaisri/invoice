@@ -101,18 +101,25 @@ const OrderPreview = () => {
             const html2canvas = html2canvasModule.default || html2canvasModule;
             const { jsPDF } = await import('jspdf');
 
-            // Temporarily strip card border, shadow, and rounded corners, and force 800px width for clean PDF across all devices
-            const origWidth = element.style.width;
-            const origMinWidth = element.style.minWidth;
-            const origShadow = element.style.boxShadow;
-            const origBorder = element.style.border;
-            const origRadius = element.style.borderRadius;
+            const inlineComputedStyles = (node) => {
+                if (!node || node.nodeType !== 1) return;
+                const computed = window.getComputedStyle(node);
+                if (computed.backgroundColor && computed.backgroundColor !== 'rgba(0, 0, 0, 0)' && computed.backgroundColor !== 'transparent') {
+                    node.style.backgroundColor = computed.backgroundColor;
+                }
+                if (computed.color) {
+                    node.style.color = computed.color;
+                }
+                if (computed.borderColor && computed.borderColor !== 'rgba(0, 0, 0, 0)' && computed.borderColor !== 'transparent') {
+                    node.style.borderColor = computed.borderColor;
+                }
+                for (let i = 0; i < node.children.length; i++) {
+                    inlineComputedStyles(node.children[i]);
+                }
+            };
 
-            element.style.width = '800px';
-            element.style.minWidth = '800px';
-            element.style.boxShadow = 'none';
-            element.style.border = 'none';
-            element.style.borderRadius = '0';
+            // Convert CSS variables to explicit computed inline RGB colors before capture
+            inlineComputedStyles(element);
 
             if (document.fonts) {
                 await document.fonts.ready;
@@ -123,33 +130,32 @@ const OrderPreview = () => {
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
-                backgroundColor: '#ffffff'
+                backgroundColor: '#ffffff',
+                windowWidth: 1200,
+                onclone: (clonedDoc) => {
+                    const clonedElement = clonedDoc.getElementById('order-content');
+                    if (clonedElement) {
+                        clonedElement.style.width = '800px';
+                        clonedElement.style.minWidth = '800px';
+                        clonedElement.style.maxWidth = '800px';
+                        clonedElement.style.boxShadow = 'none';
+                        clonedElement.style.border = 'none';
+                        clonedElement.style.borderRadius = '0';
+                        clonedElement.style.margin = '0 auto';
+                        inlineComputedStyles(clonedElement);
+                    }
+                }
             });
-
-            // Restore original styles
-            element.style.width = origWidth;
-            element.style.minWidth = origMinWidth;
-            element.style.boxShadow = origShadow;
-            element.style.border = origBorder;
-            element.style.borderRadius = origRadius;
 
             const imgData = canvas.toDataURL('image/jpeg', 0.98);
             const pdf = new jsPDF('portrait', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
 
-            let imgWidth = pdfWidth;
-            let imgHeight = (canvas.height * pdfWidth) / canvas.width;
+            const imgWidth = pdfWidth;
+            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-            if (imgHeight > pdfHeight) {
-                imgHeight = pdfHeight;
-                imgWidth = (canvas.width * pdfHeight) / canvas.height;
-            }
-
-            const xOffset = (pdfWidth - imgWidth) / 2;
-            const yOffset = 0;
-
-            pdf.addImage(imgData, 'JPEG', xOffset, yOffset, imgWidth, imgHeight);
+            pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pdfHeight));
             pdf.save(pdfFilename);
 
             setGenerating(false);
