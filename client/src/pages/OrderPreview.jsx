@@ -101,23 +101,34 @@ const OrderPreview = () => {
             const html2canvas = html2canvasModule.default || html2canvasModule;
             const { jsPDF } = await import('jspdf');
 
-            // Temporarily strip card border, shadow, and rounded corners for clean full-page PDF
+            // Temporarily strip card border, shadow, and rounded corners, and force 800px width for clean PDF across all devices
+            const origWidth = element.style.width;
+            const origMinWidth = element.style.minWidth;
             const origShadow = element.style.boxShadow;
             const origBorder = element.style.border;
             const origRadius = element.style.borderRadius;
 
+            element.style.width = '800px';
+            element.style.minWidth = '800px';
             element.style.boxShadow = 'none';
             element.style.border = 'none';
             element.style.borderRadius = '0';
 
+            if (document.fonts) {
+                await document.fonts.ready;
+            }
+
             const canvas = await html2canvas(element, {
                 scale: 2,
                 useCORS: true,
+                allowTaint: true,
                 logging: false,
                 backgroundColor: '#ffffff'
             });
 
             // Restore original styles
+            element.style.width = origWidth;
+            element.style.minWidth = origMinWidth;
             element.style.boxShadow = origShadow;
             element.style.border = origBorder;
             element.style.borderRadius = origRadius;
