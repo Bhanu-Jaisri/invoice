@@ -1,5 +1,8 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 require('dotenv').config();
+
+// Ensure PostgreSQL DATE (OID 1082) is parsed as string 'YYYY-MM-DD' without timezone conversion
+types.setTypeParser(1082, (val) => val);
 
 let connectionString = process.env.DATABASE_URL;
 if (connectionString) {

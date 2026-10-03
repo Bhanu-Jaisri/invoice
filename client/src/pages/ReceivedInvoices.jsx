@@ -2,6 +2,59 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileUp, Plus, Search, FileText, Image as ImageIcon, Download, Trash2, Edit3, X, CheckCircle, Paperclip, Eye, DollarSign, Calendar, Tag, AlertCircle, FileSpreadsheet, CheckSquare, Square, Printer, Loader2, Users, Phone, Mail, MapPin } from 'lucide-react';
 
+// Safe helper to extract local YYYY-MM-DD from any date string without timezone shift
+const toYYYYMMDD = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') {
+        const cleanStr = val.split('T')[0].trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+            return cleanStr;
+        }
+    }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
+// Safe helper to format display date (e.g. "10 Aug 2026")
+const formatDateDisplay = (val) => {
+    const cleanStr = toYYYYMMDD(val);
+    if (!cleanStr) return '-';
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+        const [yyyy, mm, dd] = parts;
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const mIdx = parseInt(mm, 10) - 1;
+        const monthName = monthNames[mIdx] || mm;
+        return `${dd} ${monthName} ${yyyy}`;
+    }
+    return cleanStr;
+};
+
+// Safe helper for DD/MM/YYYY date format
+const formatDateDMY = (val) => {
+    const cleanStr = toYYYYMMDD(val);
+    if (!cleanStr) return '-';
+    const parts = cleanStr.split('-');
+    if (parts.length === 3) {
+        const [yyyy, mm, dd] = parts;
+        return `${dd}/${mm}/${yyyy}`;
+    }
+    return cleanStr;
+};
+
+// Helper to get local today's date YYYY-MM-DD
+const getTodayDateString = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
 const ReceivedInvoices = () => {
     const navigate = useNavigate();
     const [invoices, setInvoices] = useState([]);
@@ -44,7 +97,7 @@ const ReceivedInvoices = () => {
         vendor_address: '',
         vendor_email: '',
         invoice_number: '',
-        invoice_date: new Date().toISOString().split('T')[0],
+        invoice_date: getTodayDateString(),
         has_gst: true,
         total_amount: '',
         gst_rate: '18',
@@ -110,8 +163,9 @@ const ReceivedInvoices = () => {
     // Extract available years dynamically from loaded received invoices
     const availableYearsSet = new Set([String(currentYear), '2025', '2024']);
     invoices.forEach(inv => {
-        if (inv.invoice_date) {
-            availableYearsSet.add(String(new Date(inv.invoice_date).getFullYear()));
+        const cleanDate = toYYYYMMDD(inv.invoice_date);
+        if (cleanDate) {
+            availableYearsSet.add(cleanDate.split('-')[0]);
         }
     });
     const availableYears = Array.from(availableYearsSet).sort((a, b) => b - a);
@@ -124,7 +178,7 @@ const ReceivedInvoices = () => {
             vendor_address: '',
             vendor_email: '',
             invoice_number: '',
-            invoice_date: new Date().toISOString().split('T')[0],
+            invoice_date: getTodayDateString(),
             has_gst: true,
             total_amount: '',
             gst_rate: '18',
@@ -146,7 +200,7 @@ const ReceivedInvoices = () => {
             vendor_address: invoice.vendor_address || '',
             vendor_email: invoice.vendor_email || '',
             invoice_number: invoice.invoice_number || '',
-            invoice_date: invoice.invoice_date ? invoice.invoice_date.split('T')[0] : '',
+            invoice_date: toYYYYMMDD(invoice.invoice_date),
             has_gst: invoice.has_gst !== false,
             total_amount: invoice.total_amount || '',
             gst_rate: invoice.gst_rate !== undefined && invoice.gst_rate !== null ? String(invoice.gst_rate) : '18',
@@ -288,12 +342,12 @@ const ReceivedInvoices = () => {
         if (gstFilter === 'WITHOUT_GST' && inv.has_gst) return false;
 
         if (inv.invoice_date) {
-            const d = new Date(inv.invoice_date);
-            const y = String(d.getFullYear());
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-
-            if (selectedYear !== 'ALL' && y !== selectedYear) return false;
-            if (selectedMonth !== 'ALL' && m !== selectedMonth) return false;
+            const cleanDate = toYYYYMMDD(inv.invoice_date);
+            if (cleanDate) {
+                const [y, m] = cleanDate.split('-');
+                if (selectedYear !== 'ALL' && y !== selectedYear) return false;
+                if (selectedMonth !== 'ALL' && m !== selectedMonth) return false;
+            }
         }
 
         return true;
@@ -369,7 +423,7 @@ const ReceivedInvoices = () => {
             totalSgstVal += sgst;
 
             const dateStr = inv.invoice_date
-                ? new Date(inv.invoice_date).toLocaleDateString('en-IN')
+                ? formatDateDMY(inv.invoice_date)
                 : '';
             const gstStatus = inv.has_gst ? 'With GST' : 'Without GST';
             const notesStr = (inv.notes || '').replace(/"/g, '""');
@@ -478,7 +532,7 @@ const ReceivedInvoices = () => {
                 return `
                     <tr style="border-bottom: 1px solid #e5e7eb; font-size: 10px;">
                         <td style="padding: 8px 6px; font-weight: bold; color: #4b5563;">${idx + 1}</td>
-                        <td style="padding: 8px 6px;">${inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-IN') : '-'}</td>
+                        <td style="padding: 8px 6px;">${inv.invoice_date ? formatDateDMY(inv.invoice_date) : '-'}</td>
                         <td style="padding: 8px 6px; color: #111827;">${vendorDetailsHtml}</td>
                         <td style="padding: 8px 6px; font-family: monospace;">${inv.invoice_number || '-'}</td>
                         <td style="padding: 8px 6px; color: #7e22ce;">${inv.has_gst ? `CGST (${halfRate}%): ₹${cgst.toFixed(2)}` : '-'}</td>
@@ -831,7 +885,7 @@ const ReceivedInvoices = () => {
                                                 />
                                             </td>
                                             <td className="p-4 text-gray-600 font-medium whitespace-nowrap">
-                                                {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                                {formatDateDisplay(inv.invoice_date)}
                                             </td>
                                             <td className="p-4">
                                                 <div className="font-bold text-gray-800">{inv.vendor_name || 'N/A'}</div>
@@ -922,58 +976,36 @@ const ReceivedInvoices = () => {
                                     </div>
                                 )}
 
-                                {vendors.length > 0 && (
-                                    <div className="bg-purple-50/60 p-3 rounded-xl border border-purple-100 mb-3">
-                                        <label className="block text-[11px] font-bold text-purple-800 mb-1 flex items-center justify-between">
-                                            <span>Quick Select Saved Vendor / Customer</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => navigate('/vendors')}
-                                                className="text-primary hover:underline text-[10px] font-semibold flex items-center space-x-1"
-                                            >
-                                                <Users size={12} />
-                                                <span>Manage Vendors</span>
-                                            </button>
-                                        </label>
-                                        <select
-                                            onChange={(e) => {
-                                                if (e.target.value) {
-                                                    handleVendorSelect(e.target.value);
-                                                }
-                                            }}
-                                            value=""
-                                            className="w-full px-3 py-1.5 bg-white border border-purple-200 rounded-lg text-xs font-medium text-gray-800 outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                                        >
-                                            <option value="">-- Choose from saved vendor list ({vendors.length}) --</option>
-                                            {vendors.map(v => (
-                                                <option key={v.id} value={v.id}>
-                                                    {v.name} {v.gstin ? `(GSTIN: ${v.gstin})` : ''} {v.mobile ? `(Mob: ${v.mobile})` : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-700 mb-1">
-                                        Vendor / Supplier Name <span className="text-red-500">*</span>
-                                    </label>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-xs font-bold text-gray-700">
+                                            Vendor / Supplier Name <span className="text-red-500">*</span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate('/vendors')}
+                                            className="text-primary hover:underline text-[11px] font-semibold flex items-center space-x-1"
+                                        >
+                                            <Users size={12} />
+                                            <span>Manage Vendors</span>
+                                        </button>
+                                    </div>
                                     <input
                                         required
                                         type="text"
                                         list="vendors-datalist"
                                         className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                                        placeholder="e.g. ABC Paper Mills Ltd"
+                                        placeholder="Type or select vendor name (e.g. ABC Paper Mills Ltd)"
                                         value={formData.vendor_name}
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             setFormData(prev => {
                                                 const updated = { ...prev, vendor_name: val };
-                                                const match = vendors.find(v => v.name.toLowerCase() === val.toLowerCase());
+                                                const match = vendors.find(v => (v.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
                                                 if (match) {
-                                                    updated.vendor_gstin = match.gstin || prev.vendor_gstin;
-                                                    updated.vendor_email = match.email || prev.vendor_email;
-                                                    updated.vendor_address = match.address || prev.vendor_address;
+                                                    updated.vendor_gstin = match.gstin || '';
+                                                    updated.vendor_email = match.email || '';
+                                                    updated.vendor_address = match.address || '';
                                                 }
                                                 return updated;
                                             });
@@ -1304,7 +1336,7 @@ const ReceivedInvoices = () => {
                                 <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Invoice Date</span>
                                     <span className="text-xs font-bold text-gray-800 mt-1 block">
-                                        {viewingInvoice.invoice_date ? new Date(viewingInvoice.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                        {formatDateDisplay(viewingInvoice.invoice_date)}
                                     </span>
                                 </div>
 
