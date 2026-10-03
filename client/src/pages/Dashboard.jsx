@@ -40,7 +40,13 @@ const Dashboard = () => {
             });
             const data = await res.json();
             if (Array.isArray(data)) {
-                setInvoices(data);
+                const sorted = [...data].sort((a, b) => {
+                    const numA = parseInt(String(a.invoice_number || '').replace(/\D/g, ''), 10) || 0;
+                    const numB = parseInt(String(b.invoice_number || '').replace(/\D/g, ''), 10) || 0;
+                    if (numA !== numB) return numB - numA;
+                    return (b.id || 0) - (a.id || 0);
+                });
+                setInvoices(sorted);
             }
         } catch (err) {
             console.error('Error fetching invoices:', err);
@@ -55,7 +61,13 @@ const Dashboard = () => {
             });
             const data = await res.json();
             if (Array.isArray(data)) {
-                setQuotations(data);
+                const sorted = [...data].sort((a, b) => {
+                    const numA = parseInt(String(a.quotation_number || '').replace(/\D/g, ''), 10) || 0;
+                    const numB = parseInt(String(b.quotation_number || '').replace(/\D/g, ''), 10) || 0;
+                    if (numA !== numB) return numB - numA;
+                    return (b.id || 0) - (a.id || 0);
+                });
+                setQuotations(sorted);
             }
         } catch (err) {
             console.error('Error fetching quotations:', err);
@@ -70,7 +82,13 @@ const Dashboard = () => {
             });
             const data = await res.json();
             if (Array.isArray(data)) {
-                setOrders(data);
+                const sorted = [...data].sort((a, b) => {
+                    const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
+                    const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
+                    if (numA !== numB) return numB - numA;
+                    return (b.id || 0) - (a.id || 0);
+                });
+                setOrders(sorted);
             }
         } catch (err) {
             console.error('Error fetching orders:', err);
@@ -391,12 +409,15 @@ const Dashboard = () => {
         return true;
     });
 
-    const salesGstCollected = filteredSalesInvoices.reduce((sum, inv) => {
-        const cgst = parseFloat(inv.cgst_amount || 0);
-        const sgst = parseFloat(inv.sgst_amount || 0);
-        const igst = parseFloat(inv.igst_amount || 0);
-        return sum + cgst + sgst + igst;
-    }, 0);
+    const salesCgstCollected = filteredSalesInvoices.reduce((sum, inv) => sum + parseFloat(inv.cgst_amount || 0), 0);
+    const salesSgstCollected = filteredSalesInvoices.reduce((sum, inv) => sum + parseFloat(inv.sgst_amount || 0), 0);
+    const salesIgstCollected = filteredSalesInvoices.reduce((sum, inv) => sum + parseFloat(inv.igst_amount || 0), 0);
+    const salesGstCollected = salesCgstCollected + salesSgstCollected + salesIgstCollected;
+
+    const totalCgstCollected = activeInvoices.reduce((sum, inv) => sum + parseFloat(inv.cgst_amount || 0), 0);
+    const totalSgstCollected = activeInvoices.reduce((sum, inv) => sum + parseFloat(inv.sgst_amount || 0), 0);
+    const totalIgstCollected = activeInvoices.reduce((sum, inv) => sum + parseFloat(inv.igst_amount || 0), 0);
+    const totalGstCollected = totalCgstCollected + totalSgstCollected + totalIgstCollected;
 
     const filteredSalesTotal = filteredSalesInvoices.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
 
@@ -525,49 +546,64 @@ const Dashboard = () => {
             {activeTab === 'overview' && (
                 <div className="space-y-8 animate-fadeIn">
                     {/* Key Metrics Row */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
                             <div className="flex justify-between items-center">
-                                <span className="text-emerald-100 text-xs font-bold uppercase tracking-wider">Invoice Revenue (Active)</span>
-                                <TrendingUp size={24} className="text-emerald-100" />
+                                <span className="text-emerald-100 text-[11px] font-bold uppercase tracking-wider">Invoice Revenue</span>
+                                <TrendingUp size={22} className="text-emerald-100" />
                             </div>
-                            <div className="text-2xl lg:text-3xl font-black mt-2">
+                            <div className="text-xl lg:text-2xl font-black mt-2">
                                 ₹{totalInvoiceRevenue.toFixed(2)}
                             </div>
-                            <div className="text-xs text-emerald-100/80 mt-1">From active tax invoices</div>
+                            <div className="text-[11px] text-emerald-100/80 mt-1">Active invoices total</div>
                         </div>
 
-                        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
                             <div className="flex justify-between items-center">
-                                <span className="text-amber-100 text-xs font-bold uppercase tracking-wider">Total Order Value (Active)</span>
-                                <CreditCard size={24} className="text-amber-100" />
+                                <span className="text-blue-100 text-[11px] font-bold uppercase tracking-wider">Total Sales GST</span>
+                                <Tag size={22} className="text-blue-100" />
                             </div>
-                            <div className="text-2xl lg:text-3xl font-black mt-2">
+                            <div className="text-xl lg:text-2xl font-black mt-1">
+                                ₹{totalGstCollected.toFixed(2)}
+                            </div>
+                            <div className="flex items-center space-x-1 text-[9px] text-blue-100 font-bold mt-2 flex-wrap gap-y-1">
+                                <span className="bg-white/20 px-1.5 py-0.5 rounded">CGST: ₹{totalCgstCollected.toFixed(0)}</span>
+                                <span className="bg-white/20 px-1.5 py-0.5 rounded">SGST: ₹{totalSgstCollected.toFixed(0)}</span>
+                                <span className="bg-white/20 px-1.5 py-0.5 rounded">IGST: ₹{totalIgstCollected.toFixed(0)}</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                            <div className="flex justify-between items-center">
+                                <span className="text-amber-100 text-[11px] font-bold uppercase tracking-wider">Order Form Value</span>
+                                <CreditCard size={22} className="text-amber-100" />
+                            </div>
+                            <div className="text-xl lg:text-2xl font-black mt-2">
                                 ₹{totalOrderValue.toFixed(2)}
                             </div>
-                            <div className="text-xs text-amber-100/80 mt-1">From active order forms</div>
+                            <div className="text-[11px] text-amber-100/80 mt-1">Active order forms</div>
                         </div>
 
-                        <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                        <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
                             <div className="flex justify-between items-center">
-                                <span className="text-cyan-100 text-xs font-bold uppercase tracking-wider">Total Quotation Value</span>
-                                <CreditCard size={24} className="text-cyan-100" />
+                                <span className="text-cyan-100 text-[11px] font-bold uppercase tracking-wider">Quotation Value</span>
+                                <CreditCard size={22} className="text-cyan-100" />
                             </div>
-                            <div className="text-2xl lg:text-3xl font-black mt-2">
+                            <div className="text-xl lg:text-2xl font-black mt-2">
                                 ₹{totalQuotationValue.toFixed(2)}
                             </div>
-                            <div className="text-xs text-cyan-100/80 mt-1">From active quotations</div>
+                            <div className="text-[11px] text-cyan-100/80 mt-1">Active quotations</div>
                         </div>
 
-                        <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
+                        <div className="bg-gradient-to-br from-purple-600 to-indigo-800 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
                             <div className="flex justify-between items-center">
-                                <span className="text-purple-100 text-xs font-bold uppercase tracking-wider">GST Paid (Purchases ITC)</span>
-                                <Tag size={24} className="text-purple-100" />
+                                <span className="text-purple-100 text-[11px] font-bold uppercase tracking-wider">GST Paid (Purchases)</span>
+                                <Tag size={22} className="text-purple-100" />
                             </div>
-                            <div className="text-2xl lg:text-3xl font-black mt-2">
+                            <div className="text-xl lg:text-2xl font-black mt-2">
                                 ₹{purchasesGstPaid.toFixed(2)}
                             </div>
-                            <div className="text-xs text-purple-100/80 mt-1">Paid on vendor received bills</div>
+                            <div className="text-[11px] text-purple-100/80 mt-1">Vendor bills ITC</div>
                         </div>
                     </div>
 
@@ -618,16 +654,38 @@ const Dashboard = () => {
                         {/* GST Cards Row */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {/* Sales Output GST */}
-                            <div className="bg-blue-50/60 p-5 rounded-2xl border border-blue-100 relative">
-                                <div className="flex justify-between items-center text-blue-900">
-                                    <span className="text-xs font-bold uppercase tracking-wider">GST Collected (Sales Output)</span>
-                                    <ArrowUpRight size={20} className="text-blue-600" />
+                            <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-100 relative flex flex-col justify-between space-y-3">
+                                <div>
+                                    <div className="flex justify-between items-center text-blue-900">
+                                        <span className="text-xs font-bold uppercase tracking-wider">Total Sales GST Collected</span>
+                                        <ArrowUpRight size={20} className="text-blue-600" />
+                                    </div>
+                                    <div className="text-2xl font-black text-blue-900 mt-2">
+                                        ₹{salesGstCollected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </div>
+                                    <div className="text-[11px] text-blue-700 font-semibold mt-0.5">
+                                        Total Output GST (CGST + SGST + IGST)
+                                    </div>
                                 </div>
-                                <div className="text-2xl font-black text-blue-900 mt-2">
-                                    ₹{salesGstCollected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+
+                                {/* CGST, SGST & IGST breakdown badges */}
+                                <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-blue-200/70 text-center">
+                                    <div className="bg-white/90 p-1.5 rounded-xl border border-blue-100 shadow-2xs">
+                                        <span className="text-[9px] text-blue-600 font-bold uppercase block">CGST</span>
+                                        <span className="font-extrabold text-blue-900 text-xs">₹{salesCgstCollected.toFixed(2)}</span>
+                                    </div>
+                                    <div className="bg-white/90 p-1.5 rounded-xl border border-blue-100 shadow-2xs">
+                                        <span className="text-[9px] text-blue-600 font-bold uppercase block">SGST</span>
+                                        <span className="font-extrabold text-blue-900 text-xs">₹{salesSgstCollected.toFixed(2)}</span>
+                                    </div>
+                                    <div className="bg-white/90 p-1.5 rounded-xl border border-blue-100 shadow-2xs">
+                                        <span className="text-[9px] text-indigo-600 font-bold uppercase block">IGST</span>
+                                        <span className="font-extrabold text-indigo-900 text-xs">₹{salesIgstCollected.toFixed(2)}</span>
+                                    </div>
                                 </div>
-                                <div className="text-[11px] text-blue-700 font-medium mt-1">
-                                    From {filteredSalesInvoices.length} created sales invoices (Total: ₹{filteredSalesTotal.toLocaleString('en-IN')})
+
+                                <div className="text-[11px] text-blue-700 font-medium">
+                                    From {filteredSalesInvoices.length} sales invoices (Total: ₹{filteredSalesTotal.toLocaleString('en-IN')})
                                 </div>
                             </div>
 
@@ -870,11 +928,22 @@ const Dashboard = () => {
 
             {/* Invoices Stats */}
             {activeTab === 'invoices' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-fadeIn">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Revenue (Active)</div>
                         <div className="text-3xl font-black text-gray-805 mt-2">
                             ₹{totalInvoiceRevenue.toFixed(2)}
+                        </div>
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total GST Collected</div>
+                        <div className="text-3xl font-black text-indigo-700 mt-2">
+                            ₹{totalGstCollected.toFixed(2)}
+                        </div>
+                        <div className="flex items-center space-x-1.5 text-[10px] text-gray-500 mt-2 font-bold flex-wrap gap-y-1">
+                            <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">CGST: ₹{totalCgstCollected.toFixed(2)}</span>
+                            <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">SGST: ₹{totalSgstCollected.toFixed(2)}</span>
+                            <span className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">IGST: ₹{totalIgstCollected.toFixed(2)}</span>
                         </div>
                     </div>
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -940,58 +1009,82 @@ const Dashboard = () => {
                                     <th className="p-4 font-bold text-xs text-gray-400 uppercase">Invoice #</th>
                                     <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
                                     <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Amount</th>
+                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Total Amount</th>
+                                    <th className="p-4 font-bold text-xs text-purple-700 uppercase">GST Amount</th>
                                     <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
                                     <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {loading ? (
-                                    <tr><td colSpan="6" className="p-8 text-center text-gray-400">Loading Invoices...</td></tr>
-                                ) : invoices.map((invoice) => (
-                                    <tr key={invoice.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="p-4 font-bold text-primary">#{invoice.invoice_number}</td>
-                                        <td className="p-4 text-sm text-gray-600">{formatDate(invoice.invoice_date)}</td>
-                                        <td className="p-4 text-sm font-semibold text-gray-800">{invoice.customer_name}</td>
-                                        <td className="p-4 text-sm font-bold text-gray-900">₹{parseFloat(invoice.total_amount).toFixed(2)}</td>
-                                        <td className="p-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${invoice.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
-                                                {invoice.status || 'Active'}
-                                            </span>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex items-center space-x-3">
-                                                <Link to={`/invoice/${invoice.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Preview">
-                                                    <FileText size={18} />
-                                                </Link>
-                                                {invoice.status !== 'Cancelled' && (
-                                                    <Link to={`/edit/${invoice.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Invoice">
-                                                        <Pencil size={18} />
+                                    <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Invoices...</td></tr>
+                                ) : invoices.map((invoice) => {
+                                    const cgst = parseFloat(invoice.cgst_amount || 0);
+                                    const sgst = parseFloat(invoice.sgst_amount || 0);
+                                    const igst = parseFloat(invoice.igst_amount || 0);
+                                    const totalGst = cgst + sgst + igst;
+
+                                    return (
+                                        <tr key={invoice.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="p-4 font-bold text-primary">#{invoice.invoice_number}</td>
+                                            <td className="p-4 text-sm text-gray-600">{formatDate(invoice.invoice_date)}</td>
+                                            <td className="p-4 text-sm font-semibold text-gray-800">{invoice.customer_name}</td>
+                                            <td className="p-4 text-sm font-bold text-gray-900">₹{parseFloat(invoice.total_amount || 0).toFixed(2)}</td>
+                                            <td className="p-4 bg-purple-50/30">
+                                                <div className="text-sm font-black text-purple-800">
+                                                    ₹{totalGst.toFixed(2)}
+                                                </div>
+                                                {igst > 0 ? (
+                                                    <div className="text-[10px] font-bold text-indigo-700 mt-0.5">
+                                                        IGST: ₹{igst.toFixed(2)}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[10px] font-semibold text-gray-500 mt-0.5 space-x-1.5">
+                                                        <span>CGST: ₹{cgst.toFixed(2)}</span>
+                                                        <span>|</span>
+                                                        <span>SGST: ₹{sgst.toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${invoice.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+                                                    {invoice.status || 'Active'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center space-x-3">
+                                                    <Link to={`/invoice/${invoice.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Preview">
+                                                        <FileText size={18} />
                                                     </Link>
-                                                )}
-                                                {invoice.status !== 'Cancelled' && (
+                                                    {invoice.status !== 'Cancelled' && (
+                                                        <Link to={`/edit/${invoice.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Invoice">
+                                                            <Pencil size={18} />
+                                                        </Link>
+                                                    )}
+                                                    {invoice.status !== 'Cancelled' && (
+                                                        <button
+                                                            onClick={() => handleCancelInvoice(invoice.id, invoice.invoice_number)}
+                                                            className="text-orange-500 hover:text-orange-700 transition-colors"
+                                                            title="Cancel Invoice"
+                                                        >
+                                                            <XCircle size={18} />
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => handleCancelInvoice(invoice.id, invoice.invoice_number)}
-                                                        className="text-orange-500 hover:text-orange-700 transition-colors"
-                                                        title="Cancel Invoice"
+                                                        onClick={() => handleDeleteInvoice(invoice.id, invoice.invoice_number)}
+                                                        className="text-red-500 hover:text-red-700 transition-colors"
+                                                        title="Delete Permanently"
                                                     >
-                                                        <XCircle size={18} />
+                                                        <Trash2 size={18} />
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={() => handleDeleteInvoice(invoice.id, invoice.invoice_number)}
-                                                    className="text-red-500 hover:text-red-700 transition-colors"
-                                                    title="Delete Permanently"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                                 {!loading && invoices.length === 0 && (
                                     <tr>
-                                        <td colSpan="6" className="p-12 text-center text-gray-400 text-sm">
+                                        <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
                                             No tax invoices found. Create one to get started.
                                         </td>
                                     </tr>

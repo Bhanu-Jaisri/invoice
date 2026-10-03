@@ -23,7 +23,7 @@ const CreateInvoice = () => {
     });
 
     const calculateItemAmount = (item) => {
-        return item.quantity * item.price_per_unit;
+        return (Number(item.quantity) || 0) * (Number(item.price_per_unit) || 0);
     };
 
     const [savedCustomers, setSavedCustomers] = React.useState([]);
@@ -53,7 +53,7 @@ const CreateInvoice = () => {
     }, []);
 
     const handleCustomerNameChange = (val) => {
-        const matchingCustomer = savedCustomers.find(c => c.name.trim().toLowerCase() === val.trim().toLowerCase());
+        const matchingCustomer = savedCustomers.find(c => (c.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
         if (matchingCustomer) {
             setFormData(prev => ({
                 ...prev,
@@ -92,13 +92,37 @@ const CreateInvoice = () => {
             })
                 .then(res => res.json())
                 .then(data => {
-                    if (data.invoice_date) {
-                        data.invoice_date = data.invoice_date.split('T')[0];
+                    if (data.error) {
+                        alert(data.error || 'Invoice not found');
+                        navigate('/');
+                        return;
                     }
-                    if (!data.items || data.items.length === 0) {
-                        data.items = [{ description: '', hsn_sac: '', quantity: '', unit: '1', price_per_unit: '', amount: 0 }];
+                    const parsedItems = (data.items || []).map(item => ({
+                        description: item.description || '',
+                        hsn_sac: item.hsn_sac || '',
+                        quantity: item.quantity !== null && item.quantity !== undefined && item.quantity !== '' ? Number(item.quantity) : '',
+                        unit: item.unit || '1',
+                        price_per_unit: item.price_per_unit !== null && item.price_per_unit !== undefined && item.price_per_unit !== '' ? Number(item.price_per_unit) : '',
+                        amount: Number(item.amount) || 0
+                    }));
+                    if (parsedItems.length === 0) {
+                        parsedItems.push({ description: '', hsn_sac: '', quantity: '', unit: '1', price_per_unit: '', amount: 0 });
                     }
-                    setFormData(data);
+
+                    setFormData({
+                        invoice_number: data.invoice_number || '',
+                        bill_number: data.bill_number || '',
+                        customer_name: data.customer_name || '',
+                        customer_address: data.customer_address || '',
+                        customer_email: data.customer_email || '',
+                        invoice_date: data.invoice_date ? data.invoice_date.split('T')[0] : new Date().toISOString().split('T')[0],
+                        gstin: data.gstin || '',
+                        cgst_rate: Number(data.cgst_rate) || 0,
+                        sgst_rate: Number(data.sgst_rate) || 0,
+                        igst_rate: Number(data.igst_rate) || 0,
+                        round_off: data.round_off !== null && data.round_off !== undefined ? Number(data.round_off) : 0,
+                        items: parsedItems
+                    });
                     setLoading(false);
                 })
                 .catch(err => {
@@ -106,7 +130,7 @@ const CreateInvoice = () => {
                     setLoading(false);
                 });
         }
-    }, [id]);
+    }, [id, navigate]);
 
     const [financialYearInfo, setFinancialYearInfo] = useState({ short: '', full: '' });
 
@@ -140,7 +164,7 @@ const CreateInvoice = () => {
 
     React.useEffect(() => {
         const lookupGSTIN = async () => {
-            const gstin = formData.gstin.trim().toUpperCase();
+            const gstin = (formData.gstin || '').trim().toUpperCase();
             if (gstin.length === 15) {
                 setLookupLoading(true);
                 try {
@@ -152,9 +176,9 @@ const CreateInvoice = () => {
                         const data = await res.json();
                         setFormData(prev => ({
                             ...prev,
-                            customer_name: data.customer_name,
-                            customer_address: data.customer_address,
-                            customer_email: data.customer_email || ''
+                            customer_name: data.customer_name || prev.customer_name,
+                            customer_address: data.customer_address || prev.customer_address,
+                            customer_email: data.customer_email || prev.customer_email
                         }));
                     }
                 } catch (err) {
@@ -174,11 +198,11 @@ const CreateInvoice = () => {
         newItems[index][field] = value;
 
         if (field === 'description' && value) {
-            const matchingProd = savedProducts.find(p => p.name.trim().toLowerCase() === value.trim().toLowerCase());
+            const matchingProd = savedProducts.find(p => (p.name || '').trim().toLowerCase() === (value || '').trim().toLowerCase());
             if (matchingProd) {
                 if (matchingProd.hsn_sac) newItems[index].hsn_sac = matchingProd.hsn_sac;
                 if (matchingProd.unit) newItems[index].unit = matchingProd.unit;
-                if (matchingProd.price_per_unit) newItems[index].price_per_unit = matchingProd.price_per_unit;
+                if (matchingProd.price_per_unit) newItems[index].price_per_unit = Number(matchingProd.price_per_unit);
             }
         }
 
@@ -206,10 +230,10 @@ const CreateInvoice = () => {
         e.preventDefault();
         setLoading(true);
 
-        const subtotal = formData.items.reduce((sum, item) => sum + item.amount, 0);
-        const cgst_amount = (subtotal * formData.cgst_rate) / 100;
-        const sgst_amount = (subtotal * formData.sgst_rate) / 100;
-        const igst_amount = (subtotal * formData.igst_rate) / 100;
+        const subtotal = (formData.items || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        const cgst_amount = (subtotal * (Number(formData.cgst_rate) || 0)) / 100;
+        const sgst_amount = (subtotal * (Number(formData.sgst_rate) || 0)) / 100;
+        const igst_amount = (subtotal * (Number(formData.igst_rate) || 0)) / 100;
         const total_amount = subtotal + cgst_amount + sgst_amount + igst_amount + (Number(formData.round_off) || 0);
 
         const payload = { 
@@ -249,10 +273,10 @@ const CreateInvoice = () => {
         }
     };
 
-    const subtotal = formData.items.reduce((sum, item) => sum + item.amount, 0);
-    const cgstAmount = (subtotal * formData.cgst_rate) / 100;
-    const sgstAmount = (subtotal * formData.sgst_rate) / 100;
-    const igstAmount = (subtotal * formData.igst_rate) / 100;
+    const subtotal = (formData.items || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const cgstAmount = (subtotal * (Number(formData.cgst_rate) || 0)) / 100;
+    const sgstAmount = (subtotal * (Number(formData.sgst_rate) || 0)) / 100;
+    const igstAmount = (subtotal * (Number(formData.igst_rate) || 0)) / 100;
     const totalAmount = subtotal + cgstAmount + sgstAmount + igstAmount + (Number(formData.round_off) || 0);
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -439,7 +463,7 @@ const CreateInvoice = () => {
                                         </div>
                                         <div className="w-full md:w-32 text-right">
                                             <label className="text-xs text-gray-500 font-bold block mb-1">Total</label>
-                                            <span className="font-bold text-gray-700 block mt-2">₹{(item.amount || 0).toFixed(2)}</span>
+                                            <span className="font-bold text-gray-700 block mt-2">₹{(Number(item.amount) || 0).toFixed(2)}</span>
                                         </div>
                                         <button
                                             type="button"

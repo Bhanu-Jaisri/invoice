@@ -106,7 +106,7 @@ router.get('/next-number', async (req, res) => {
 router.get('/', async (req, res) => {
     try {
         const result = await db.query(
-            'SELECT * FROM invoices WHERE user_id = $1 ORDER BY created_at DESC',
+            'SELECT * FROM invoices WHERE user_id = $1 ORDER BY id DESC',
             [req.userId]
         );
         res.json(result.rows);

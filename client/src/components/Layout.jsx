@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Menu, X, LogOut, User, FileText, ShoppingBag, Users, Package, FileUp } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Menu, X, LogOut, User, FileText, ShoppingBag, Users, Package, FileUp, Building2 } from 'lucide-react';
 import { applyTheme } from '../utils/theme';
 
 const Layout = () => {
@@ -123,6 +123,14 @@ const Layout = () => {
                     >
                         <FileUp size={20} />
                         <span>Received Invoices</span>
+                    </Link>
+                    <Link
+                        to="/vendors"
+                        onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${location.pathname === '/vendors' ? 'bg-primary text-white' : 'text-gray-700 hover:bg-white hover:shadow-sm'}`}
+                    >
+                        <Building2 size={20} />
+                        <span>Received Vendors</span>
                     </Link>
                     <Link
                         to="/profile"

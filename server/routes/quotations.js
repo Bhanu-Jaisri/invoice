@@ -119,7 +119,7 @@ router.get('/', async (req, res) => {
              LEFT JOIN quotation_items qi ON q.id = qi.quotation_id
              WHERE q.user_id = $1
              GROUP BY q.id
-             ORDER BY q.created_at DESC`,
+             ORDER BY q.id DESC`,
             [req.userId]
         );
         res.json(result.rows);

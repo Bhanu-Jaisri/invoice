@@ -26,6 +26,7 @@ const orderRoutes = require('./routes/orders');
 const customerRoutes = require('./routes/customers');
 const productRoutes = require('./routes/products');
 const receivedInvoiceRoutes = require('./routes/receivedInvoices');
+const vendorRoutes = require('./routes/vendors');
 
 // Routes
 app.get('/api', (req, res) => {
@@ -41,6 +42,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/received-invoices', receivedInvoiceRoutes);
+app.use('/api/vendors', vendorRoutes);
 
 app.get('/', (req, res) => {
     res.send('Invoice Dashboard API');

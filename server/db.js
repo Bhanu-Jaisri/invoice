@@ -101,7 +101,10 @@ const initDb = async () => {
             id SERIAL PRIMARY KEY,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             vendor_name VARCHAR(255) NOT NULL,
-            invoice_number VARCHAR(100) NOT NULL,
+            vendor_gstin VARCHAR(50),
+            vendor_address TEXT,
+            vendor_email VARCHAR(100),
+            invoice_number VARCHAR(100),
             invoice_date DATE NOT NULL,
             has_gst BOOLEAN DEFAULT TRUE,
             total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
@@ -304,6 +307,26 @@ const initDb = async () => {
     `);
     await runQuery('Allow NULL for customers mobile', `
         ALTER TABLE customers ALTER COLUMN mobile DROP NOT NULL;
+    `);
+    await runQuery('Allow NULL for received_invoices invoice_number', `
+        ALTER TABLE received_invoices ALTER COLUMN invoice_number DROP NOT NULL;
+    `);
+    await runQuery('Add vendor_gstin, vendor_address, vendor_email to received_invoices', `
+        ALTER TABLE received_invoices ADD COLUMN IF NOT EXISTS vendor_gstin VARCHAR(50);
+        ALTER TABLE received_invoices ADD COLUMN IF NOT EXISTS vendor_address TEXT;
+        ALTER TABLE received_invoices ADD COLUMN IF NOT EXISTS vendor_email VARCHAR(100);
+    `);
+    await runQuery('Create vendors table', `
+        CREATE TABLE IF NOT EXISTS vendors (
+            id SERIAL PRIMARY KEY,
+            user_id INT REFERENCES users(id) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            mobile VARCHAR(50),
+            gstin VARCHAR(50),
+            email VARCHAR(100),
+            address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     `);
 
     console.log('Connected to PostgreSQL database and verified all tables');
