@@ -675,35 +675,6 @@ const Dashboard = () => {
     const totalQuotationValue = activeQuotations.reduce((acc, q) => acc + parseFloat(q.total_amount || 0), 0);
     const avgQuotationValue = activeQuotations.length > 0 ? (totalQuotationValue / activeQuotations.length) : 0;
 
-    // Compute Product statistics from active quotations
-    let quoteDailyCalendarQty = 0;
-    let quoteDailyCalendarValue = 0;
-    let quoteMonthlyCalendarQty = 0;
-    let quoteMonthlyCalendarValue = 0;
-    let quoteDairyQty = 0;
-    let quoteDairyValue = 0;
-
-    activeQuotations.forEach(quote => {
-        const quoteItems = quote.items || [];
-        quoteItems.forEach(item => {
-            const qty = parseFloat(item.quantity) || 0;
-            const price = parseFloat(item.price_per_unit) || 0;
-            const itemAmt = qty * price;
-            const itemType = item.item_type || '';
-
-            if (itemType === 'Daily Calendar') {
-                quoteDailyCalendarQty += qty;
-                quoteDailyCalendarValue += itemAmt;
-            } else if (itemType === 'Monthly Calendar') {
-                quoteMonthlyCalendarQty += qty;
-                quoteMonthlyCalendarValue += itemAmt;
-            } else if (itemType === 'Dairy') {
-                quoteDairyQty += qty;
-                quoteDairyValue += itemAmt;
-            }
-        });
-    });
-
     // Calculate Orders Stats
     const activeOrders = orders.filter(o => o.status !== 'Cancelled');
     const totalOrderValue = activeOrders.reduce((acc, o) => acc + parseFloat(o.total_amount || 0), 0);
@@ -1493,7 +1464,7 @@ const Dashboard = () => {
                     </div>
 
                     {/* Breakdown and Slips Sections */}
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {/* Column 1: Order Category Breakdown */}
                         <div className="space-y-6">
                             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Order Breakdown</h3>
@@ -1580,63 +1551,7 @@ const Dashboard = () => {
                             </div>
                         </div>
 
-                        {/* Column 2: Quotation Category Breakdown */}
-                        <div className="space-y-6">
-                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Quotation Breakdown</h3>
-                            
-                            {/* Daily Calendars */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                                <div className="flex items-center space-x-4">
-                                    <div className="p-3 bg-pink-50 text-pink-600 rounded-xl">
-                                        <Calendar size={24} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-bold text-gray-800">Daily Calendars</div>
-                                        <div className="text-2xl font-black text-rose-600 mt-0.5">{quoteDailyCalendarQty.toLocaleString()} units</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-bold text-gray-400">Value</div>
-                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{quoteDailyCalendarValue.toFixed(2)}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Monthly Calendars */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                                <div className="flex items-center space-x-4">
-                                    <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
-                                        <Calendar size={24} className="rotate-90" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-bold text-gray-800">Monthly Calendars</div>
-                                        <div className="text-2xl font-black text-rose-600 mt-0.5">{quoteMonthlyCalendarQty.toLocaleString()} units</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-bold text-gray-400">Value</div>
-                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{quoteMonthlyCalendarValue.toFixed(2)}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Dairies */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                                <div className="flex items-center space-x-4">
-                                    <div className="p-3 bg-fuchsia-50 text-fuchsia-600 rounded-xl">
-                                        <BookOpen size={24} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-bold text-gray-800">Dairies</div>
-                                        <div className="text-2xl font-black text-rose-600 mt-0.5">{quoteDairyQty.toLocaleString()} units</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-bold text-gray-400">Value</div>
-                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{quoteDairyValue.toFixed(2)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Column 3: Slip demands */}
+                        {/* Column 2: Slip demands */}
                         <div className="space-y-6">
                             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Slip Requirements</h3>
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
