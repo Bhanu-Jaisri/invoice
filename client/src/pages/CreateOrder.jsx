@@ -28,7 +28,8 @@ const CreateOrder = () => {
         payment_status: 'Not Received',
         payment_amount: '',
         advance_amount: '',
-        second_payment_amount: ''
+        second_payment_amount: '',
+        has_gst: false
     });
 
     const [items, setItems] = useState([
@@ -37,7 +38,7 @@ const CreateOrder = () => {
             item_category: 'Daily Calendar', // 'Daily Calendar', 'Monthly Calendar', 'Dairy', 'Other'
             custom_item_type: '',
             hsn_sac: '',
-            quantity: 0,
+            quantity: '',
             unit: '1',
             price_per_unit: '',
             gst_rate: 18,
@@ -48,7 +49,8 @@ const CreateOrder = () => {
             top_color: '',
             sheeter: '6 sheeter',
             designs: [{ design_number: '1', quantity: '' }],
-            designs_total_qty: 0
+            designs_total_qty: 0,
+            details: ''
         }
     ]);
 
@@ -167,7 +169,10 @@ const CreateOrder = () => {
                         payment_status: data.payment_status || 'Not Received',
                         payment_amount: data.payment_amount !== null && data.payment_amount !== undefined ? data.payment_amount : '',
                         advance_amount: data.advance_amount !== null && data.advance_amount !== undefined ? data.advance_amount : '',
-                        second_payment_amount: data.second_payment_amount !== null && data.second_payment_amount !== undefined ? data.second_payment_amount : ''
+                        second_payment_amount: data.second_payment_amount !== null && data.second_payment_amount !== undefined ? data.second_payment_amount : '',
+                        has_gst: data.has_gst !== undefined && data.has_gst !== null 
+                            ? (data.has_gst === true || data.has_gst === 'true') 
+                            : (parseFloat(data.cgst_amount || 0) + parseFloat(data.sgst_amount || 0) + parseFloat(data.igst_amount || 0) > 0)
                     });
 
                     // Parse payment history or construct from legacy fields
@@ -235,7 +240,8 @@ const CreateOrder = () => {
                                 top_color: item.top_color || '',
                                 sheeter: item.sheeter || '6 sheeter',
                                 designs: parsedDesigns || (category === 'Daily Calendar' ? [{ design_number: '1', quantity: '' }] : null),
-                                designs_total_qty: item.designs_total_qty || (category === 'Daily Calendar' ? item.quantity : null)
+                                designs_total_qty: item.designs_total_qty || (category === 'Daily Calendar' ? item.quantity : null),
+                                details: item.details || ''
                             };
                         });
                         setItems(mappedItems);
@@ -269,7 +275,10 @@ const CreateOrder = () => {
                         slips_delivered: data.slips_delivered || 0,
                         queries: data.queries || '',
                         payment_status: data.payment_status || 'Not Received',
-                        payment_amount: data.payment_amount !== null && data.payment_amount !== undefined ? data.payment_amount : ''
+                        payment_amount: data.payment_amount !== null && data.payment_amount !== undefined ? data.payment_amount : '',
+                        has_gst: data.has_gst !== undefined && data.has_gst !== null 
+                            ? (data.has_gst === true || data.has_gst === 'true') 
+                            : (parseFloat(data.cgst_amount || 0) + parseFloat(data.sgst_amount || 0) + parseFloat(data.igst_amount || 0) > 0)
                     }));
 
                     let history = [];
@@ -335,7 +344,8 @@ const CreateOrder = () => {
                                 top_color: item.top_color || '',
                                 sheeter: item.sheeter || '6 sheeter',
                                 designs: parsedDesigns || (category === 'Daily Calendar' ? [{ design_number: '1', quantity: '' }] : null),
-                                designs_total_qty: item.designs_total_qty || (category === 'Daily Calendar' ? item.quantity : null)
+                                designs_total_qty: item.designs_total_qty || (category === 'Daily Calendar' ? item.quantity : null),
+                                details: item.details || ''
                             };
                         });
                         setItems(mappedItems);
@@ -393,7 +403,7 @@ const CreateOrder = () => {
                 item_category: 'Daily Calendar',
                 custom_item_type: '',
                 hsn_sac: '',
-                quantity: 0,
+                quantity: '',
                 unit: '1',
                 price_per_unit: '',
                 gst_rate: 18,
@@ -404,7 +414,8 @@ const CreateOrder = () => {
                 top_color: '',
                 sheeter: '6 sheeter',
                 designs: [{ design_number: '1', quantity: '' }],
-                designs_total_qty: 0
+                designs_total_qty: 0,
+                details: ''
             }
         ]);
     };
@@ -487,15 +498,19 @@ const CreateOrder = () => {
 
             if (currentDesigns.length > 1) {
                 currentDesigns.splice(designIndex, 1);
-                currentItem.designs = currentDesigns;
-
-                // Re-calculate sum
-                const sum = currentDesigns.reduce((acc, curr) => acc + (parseFloat(curr.quantity) || 0), 0);
-                currentItem.designs_total_qty = sum;
-                currentItem.quantity = sum;
-
-                updated[itemIndex] = currentItem;
+            } else {
+                currentDesigns.splice(0, 1);
             }
+            currentItem.designs = currentDesigns;
+
+            // Re-calculate sum
+            const sum = currentDesigns.reduce((acc, curr) => acc + (parseFloat(curr.quantity) || 0), 0);
+            currentItem.designs_total_qty = sum;
+            if (sum > 0) {
+                currentItem.quantity = sum;
+            }
+
+            updated[itemIndex] = currentItem;
             return updated;
         });
     };
@@ -512,7 +527,9 @@ const CreateOrder = () => {
                 if (field === 'quantity') {
                     const sum = currentDesigns.reduce((acc, curr) => acc + (parseFloat(curr.quantity) || 0), 0);
                     currentItem.designs_total_qty = sum;
-                    currentItem.quantity = sum;
+                    if (sum > 0) {
+                        currentItem.quantity = sum;
+                    }
                 }
 
                 currentItem.designs = currentDesigns;
@@ -535,15 +552,17 @@ const CreateOrder = () => {
             const itemSubtotal = qty * rate;
             subtotal += itemSubtotal;
 
-            const gstRate = parseFloat(item.gst_rate) || 0;
-            const gstAmt = (itemSubtotal * gstRate) / 100;
+            if (formData.has_gst) {
+                const gstRate = parseFloat(item.gst_rate) || 0;
+                const gstAmt = (itemSubtotal * gstRate) / 100;
 
-            const isInterstate = formData.customer_state && formData.customer_state.toLowerCase() !== user.office_state.toLowerCase();
-            if (isInterstate) {
-                igst_amount += gstAmt;
-            } else {
-                cgst_amount += gstAmt / 2;
-                sgst_amount += gstAmt / 2;
+                const isInterstate = formData.customer_state && formData.customer_state.toLowerCase() !== user.office_state.toLowerCase();
+                if (isInterstate) {
+                    igst_amount += gstAmt;
+                } else {
+                    cgst_amount += gstAmt / 2;
+                    sgst_amount += gstAmt / 2;
+                }
             }
         });
 
@@ -565,10 +584,14 @@ const CreateOrder = () => {
         setLoading(true);
 
         const computedPaid = paymentHistory.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-        const computedStatus = computedPaid <= 0 ? 'Not Received' : (computedPaid >= totals.total_amount ? 'Full Payment' : 'Half Payment');
+        const totalWithGst = formData.has_gst 
+            ? (totals.total_amount + totals.cgst_amount + totals.sgst_amount + totals.igst_amount) 
+            : totals.total_amount;
+        const computedStatus = computedPaid <= 0 ? 'Not Received' : (computedPaid >= totalWithGst ? 'Full Payment' : 'Half Payment');
 
         const payload = {
             ...formData,
+            has_gst: formData.has_gst,
             payment_history: paymentHistory,
             payment_amount: computedPaid,
             advance_amount: paymentHistory[0]?.amount || '',
@@ -612,14 +635,21 @@ const CreateOrder = () => {
     return (
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6">
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-md border border-gray-100 space-y-6">
-                <div className="border-b border-gray-100 pb-4 flex justify-between items-center">
+                <div className="border-b border-gray-100 pb-4 flex justify-between items-start gap-4">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800">{id ? 'Edit Order Details' : 'Generate New Order'}</h2>
                         <p className="text-sm text-gray-500">Provide customer details and add item sets to generate order form.</p>
                     </div>
-                    <div className="text-right">
-                        <span className="text-xs text-gray-400 font-bold block">Order Number</span>
-                        <span className="text-sm font-bold text-primary">{formData.order_number || 'Generating...'}</span>
+                    <div className="text-right shrink-0">
+                        <label className="text-xs text-gray-400 font-bold block mb-1">Order Number</label>
+                        <input
+                            name="order_number"
+                            type="text"
+                            className="text-sm font-bold text-primary border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all text-right w-52"
+                            placeholder="e.g. OD/15102026/01"
+                            value={formData.order_number}
+                            onChange={handleFormChange}
+                        />
                     </div>
                 </div>
 
@@ -756,82 +786,86 @@ const CreateOrder = () => {
                     </div>
                 </div>
 
-                {/* Section: Status & Delivery Details */}
+                {/* Section: Delivery Details */}
                 <div className="space-y-4 pt-4 border-t border-gray-100">
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Status & Delivery Details</h3>
+                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Delivery Details</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1">Approval Status</label>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">Delivery Status</label>
                             <select
-                                name="approval_status"
+                                name="delivery_status"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                value={formData.approval_status || 'Pending'}
+                                value={formData.delivery_status || 'Not Delivered'}
                                 onChange={handleFormChange}
                             >
-                                <option value="Pending">Pending</option>
-                                <option value="Approved">Approved</option>
-                                <option value="Rejected">Rejected</option>
+                                <option value="Not Delivered">Not Delivered</option>
+                                <option value="Delivered">Delivered</option>
                             </select>
                         </div>
 
-                        {formData.approval_status !== 'Rejected' && (
-                            <>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Delivery Status</label>
-                                    <select
-                                        name="delivery_status"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                        value={formData.delivery_status || 'Not Delivered'}
-                                        onChange={handleFormChange}
-                                    >
-                                        <option value="Not Delivered">Not Delivered</option>
-                                        <option value="Delivered">Delivered</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Status</label>
-                                    <select
-                                        name="payment_status"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                        value={formData.payment_status || 'Not Received'}
-                                        onChange={handleFormChange}
-                                    >
-                                        <option value="Not Received">Not Received</option>
-                                        <option value="Half Payment">Half Payment</option>
-                                        <option value="Full Payment">Full Payment</option>
-                                    </select>
-                                </div>
-
-                                {(formData.payment_status === 'Half Payment' || formData.payment_status === 'Full Payment') && (
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Amount Received</label>
-                                        <input
-                                            name="payment_amount"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                            placeholder="Enter amount"
-                                            value={formData.payment_amount || ''}
-                                            onChange={handleFormChange}
-                                        />
-                                    </div>
-                                )}
-
-                                <div className="md:col-span-2">
-                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Queries</label>
-                                    <textarea
-                                        name="queries"
-                                        rows="2"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all resize-none"
-                                        placeholder="Any queries..."
-                                        value={formData.queries || ''}
-                                        onChange={handleFormChange}
-                                    />
-                                </div>
-                            </>
+                        {formData.delivery_status === 'Delivered' && (
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 mb-1">Delivered Quantity</label>
+                                <input
+                                    name="calendars_delivered"
+                                    type="number"
+                                    min="0"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                    placeholder={`Total ordered: ${items.reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0)}`}
+                                    value={formData.calendars_delivered || ''}
+                                    onChange={e => setFormData(prev => ({ ...prev, calendars_delivered: e.target.value, slips_delivered: e.target.value }))}
+                                />
+                            </div>
                         )}
+                    </div>
+                </div>
+
+                {/* GST / Tax Type Selection */}
+                <div className="pt-4 border-t border-gray-100">
+                    <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 p-4 rounded-2xl border border-blue-100 shadow-2xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                                    <FileText size={16} className="text-primary" />
+                                    Tax & GST Setting *
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {formData.has_gst 
+                                        ? 'With GST: Shows GST rates, tax breakdown (CGST/SGST/IGST), subtotal excl. GST, and grand total.' 
+                                        : 'Without GST: No tax details shown. Total amount equals the exact subtotal value.'}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded-xl border border-gray-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, has_gst: false }))}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                                        !formData.has_gst 
+                                            ? 'bg-primary text-white shadow-sm' 
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${!formData.has_gst ? 'border-white' : 'border-gray-400'}`}>
+                                        {!formData.has_gst && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </span>
+                                    Without GST
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, has_gst: true }))}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                                        formData.has_gst 
+                                            ? 'bg-primary text-white shadow-sm' 
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${formData.has_gst ? 'border-white' : 'border-gray-400'}`}>
+                                        {formData.has_gst && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </span>
+                                    With GST
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -939,12 +973,11 @@ const CreateOrder = () => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-gray-655 mb-1">Bottom Color *</label>
+                                            <label className="block text-xs font-semibold text-gray-655 mb-1">Bottom Color</label>
                                             <input
-                                                required
                                                 type="text"
                                                 className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none"
-                                                placeholder="e.g. Blue"
+                                                placeholder="e.g. Blue (optional)"
                                                 value={item.bottom_color}
                                                 onChange={(e) => handleItemChange(index, 'bottom_color', e.target.value)}
                                             />
@@ -956,7 +989,10 @@ const CreateOrder = () => {
                                 {item.item_category === 'Daily Calendar' && (
                                     <div className="p-4 bg-white rounded-xl border border-gray-150 space-y-4">
                                         <div className="flex justify-between items-center border-b border-gray-150 pb-2">
-                                            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Design Wise Quantities (1 to 100 designs)</span>
+                                            <div>
+                                                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">Design Wise Quantities</span>
+                                                <span className="text-[11px] text-gray-400 ml-2 font-normal">(Optional)</span>
+                                            </div>
                                             <button
                                                 type="button"
                                                 onClick={() => handleAddDesign(index)}
@@ -967,48 +1003,61 @@ const CreateOrder = () => {
                                             </button>
                                         </div>
 
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                            {(item.designs || [{ design_number: '1', quantity: '' }]).map((design, dIndex) => (
-                                                <div key={dIndex} className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                                                    <div className="flex-1 min-w-0">
-                                                        <label className="block text-[9px] font-bold text-gray-400">Design No/Name</label>
-                                                        <input
-                                                            required
-                                                            type="text"
-                                                            className="w-full bg-transparent text-xs font-semibold outline-none border-b border-gray-200 focus:border-primary py-0.5"
-                                                            value={design.design_number}
-                                                            placeholder={`e.g. ${dIndex + 1}`}
-                                                            onChange={(e) => handleDesignChange(index, dIndex, 'design_number', e.target.value)}
-                                                        />
-                                                    </div>
-                                                    <div className="w-16">
-                                                        <label className="block text-[9px] font-bold text-gray-400">Qty</label>
-                                                        <input
-                                                            required
-                                                            type="number"
-                                                            min="1"
-                                                            className="w-full bg-transparent text-xs font-semibold outline-none border-b border-gray-200 focus:border-primary py-0.5"
-                                                            value={design.quantity}
-                                                            placeholder="Qty"
-                                                            onChange={(e) => handleDesignChange(index, dIndex, 'quantity', e.target.value)}
-                                                        />
-                                                    </div>
-                                                    {(item.designs || []).length > 1 && (
+                                        {(!item.designs || item.designs.length === 0) ? (
+                                            <div className="py-2 px-3 bg-gray-50 rounded-lg text-xs text-gray-500 border border-dashed border-gray-200 flex justify-between items-center">
+                                                <span>No designs specified. You can directly edit the Total Quantity below.</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleAddDesign(index)}
+                                                    className="text-primary hover:underline font-bold text-xs"
+                                                >
+                                                    + Add Design
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                {item.designs.map((design, dIndex) => (
+                                                    <div key={dIndex} className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                                        <div className="flex-1 min-w-0">
+                                                            <label className="block text-[9px] font-bold text-gray-400">Design No/Name</label>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full bg-transparent text-xs font-semibold outline-none border-b border-gray-200 focus:border-primary py-0.5"
+                                                                value={design.design_number}
+                                                                placeholder={`e.g. ${dIndex + 1}`}
+                                                                onChange={(e) => handleDesignChange(index, dIndex, 'design_number', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="w-16">
+                                                            <label className="block text-[9px] font-bold text-gray-400">Qty</label>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="any"
+                                                                className="w-full bg-transparent text-xs font-semibold outline-none border-b border-gray-200 focus:border-primary py-0.5"
+                                                                value={design.quantity}
+                                                                placeholder="Qty"
+                                                                onChange={(e) => handleDesignChange(index, dIndex, 'quantity', e.target.value)}
+                                                            />
+                                                        </div>
                                                         <button
                                                             type="button"
                                                             onClick={() => handleRemoveDesign(index, dIndex)}
                                                             className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                                                            title="Remove design"
                                                         >
                                                             <Trash2 size={14} />
                                                         </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
 
-                                        <div className="flex justify-end text-xs font-bold text-gray-700 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
-                                            <span>Computed Total Quantity: <span className="text-primary text-sm font-extrabold">{item.quantity || 0}</span> {item.unit || '1'}</span>
-                                        </div>
+                                        {item.designs && item.designs.length > 0 && (
+                                            <div className="flex justify-end text-xs font-bold text-gray-700 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
+                                                <span>Computed Design Total: <span className="text-primary text-sm font-extrabold">{item.designs_total_qty || 0}</span> {item.unit || '1'}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -1078,17 +1127,15 @@ const CreateOrder = () => {
                                 )}
 
                                 {/* Price, Qty, and GST */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className={`grid grid-cols-2 ${formData.has_gst ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Total Quantity *</label>
+                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Total Quantity</label>
                                         <input
-                                            required
-                                            disabled={item.item_category === 'Daily Calendar'}
                                             type="number"
                                             min="0"
                                             step="any"
-                                            className={`w-full px-4 py-2 border border-gray-300 rounded-xl outline-none text-sm ${item.item_category === 'Daily Calendar' ? 'bg-gray-150 text-gray-500 font-bold cursor-not-allowed' : ''}`}
-                                            placeholder="Quantity"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none text-sm font-semibold focus:border-primary transition-all"
+                                            placeholder="Quantity (optional)"
                                             value={item.quantity}
                                             onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
                                         />
@@ -1107,46 +1154,59 @@ const CreateOrder = () => {
 
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-500 mb-1">
-                                            {item.item_category === 'Other' ? 'Rate per Product *' : 'Rate per Calendar/Dairy *'}
+                                            {item.item_category === 'Other' ? 'Rate per Product' : 'Rate per Calendar/Dairy'}
                                         </label>
                                         <input
-                                            required
                                             type="number"
                                             min="0"
                                             step="0.01"
                                             className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none text-sm"
-                                            placeholder="Rate"
+                                            placeholder="Rate (optional)"
                                             value={item.price_per_unit}
                                             onChange={(e) => handleItemChange(index, 'price_per_unit', e.target.value)}
                                         />
                                     </div>
 
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">GST Rate (%)</label>
-                                        {item.item_category !== 'Other' ? (
-                                            <div className="relative">
-                                                <select
-                                                    disabled
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-xl outline-none bg-gray-150 text-sm font-semibold text-gray-500 cursor-not-allowed appearance-none"
+                                    {formData.has_gst && (
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-500 mb-1">GST Rate (%)</label>
+                                            {item.item_category !== 'Other' ? (
+                                                <div className="relative">
+                                                    <select
+                                                        disabled
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-xl outline-none bg-gray-150 text-sm font-semibold text-gray-500 cursor-not-allowed appearance-none"
+                                                        value={item.gst_rate}
+                                                    >
+                                                        <option value="18">18% (Fixed)</option>
+                                                    </select>
+                                                    <span className="absolute right-3 top-2.5 text-[9px] text-red-500 font-bold">Fixed</span>
+                                                </div>
+                                            ) : (
+                                                <input
+                                                    required
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none text-sm"
+                                                    placeholder="+___GST"
                                                     value={item.gst_rate}
-                                                >
-                                                    <option value="18">18% (Fixed)</option>
-                                                </select>
-                                                <span className="absolute right-3 top-2.5 text-[9px] text-red-500 font-bold">Fixed</span>
-                                            </div>
-                                        ) : (
-                                            <input
-                                                required
-                                                type="number"
-                                                min="0"
-                                                max="100"
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none text-sm"
-                                                placeholder="+___GST"
-                                                value={item.gst_rate}
-                                                onChange={(e) => handleItemChange(index, 'gst_rate', e.target.value)}
-                                            />
-                                        )}
-                                    </div>
+                                                    onChange={(e) => handleItemChange(index, 'gst_rate', e.target.value)}
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Details Box (Optional) */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-500 mb-1">Details (Optional)</label>
+                                    <textarea
+                                        rows={2}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-xl outline-none text-sm focus:border-primary transition-all resize-y"
+                                        placeholder="Add any extra specifications, instructions, or item details (optional)..."
+                                        value={item.details || ''}
+                                        onChange={(e) => handleItemChange(index, 'details', e.target.value)}
+                                    />
                                 </div>
                             </div>
                         ))}
@@ -1154,44 +1214,109 @@ const CreateOrder = () => {
                 </div>
 
                 {/* Section 3: Calculations Output */}
-                <div className="pt-6 border-t border-gray-100 flex justify-end">
-                    <div className="w-full md:w-80 space-y-2">
+                <div className="pt-6 border-t border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                    {/* GST Mode Toggle in Calculations Section */}
+                    <div className="bg-gradient-to-r from-blue-50/60 to-indigo-50/40 p-4 rounded-2xl border border-blue-100/80 shadow-2xs">
+                        <span className="block text-xs font-bold uppercase text-gray-600 mb-2">GST / Tax Setting</span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, has_gst: false }))}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+                                    !formData.has_gst 
+                                        ? 'bg-primary text-white border-primary shadow-sm' 
+                                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                                }`}
+                            >
+                                <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${!formData.has_gst ? 'border-white' : 'border-gray-400'}`}>
+                                    {!formData.has_gst && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                </span>
+                                Without GST
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, has_gst: true }))}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+                                    formData.has_gst 
+                                        ? 'bg-primary text-white border-primary shadow-sm' 
+                                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+                                }`}
+                            >
+                                <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${formData.has_gst ? 'border-white' : 'border-gray-400'}`}>
+                                    {formData.has_gst && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                </span>
+                                With GST
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="w-full md:w-96 space-y-2">
                         <div className="flex justify-between text-sm text-gray-500">
                             <span>Subtotal Amount:</span>
                             <span className="font-semibold text-gray-800">₹{totals.subtotal.toFixed(2)}</span>
                         </div>
-                        {isSameState ? (
+
+                        {formData.has_gst ? (
                             <>
-                                <div className="flex justify-between text-xs text-gray-400">
-                                    <span>CGST Amount:</span>
-                                    <span>₹{totals.cgst_amount.toFixed(2)}</span>
+                                {/* Total Amount (Excl. GST) */}
+                                <div className="flex justify-between text-base border-t border-gray-100 pt-2 font-bold text-gray-900">
+                                    <span>Total Amount (Excl. GST):</span>
+                                    <span className="text-primary text-lg">₹{totals.total_amount.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-400">
-                                    <span>SGST Amount:</span>
-                                    <span>₹{totals.sgst_amount.toFixed(2)}</span>
+
+                                {/* GST / Tax */}
+                                <div className="space-y-1 bg-gray-50/80 p-2.5 rounded-xl border border-gray-150 text-xs">
+                                    <div className="flex justify-between font-bold text-gray-700 text-sm">
+                                        <span>GST / Tax:</span>
+                                        <span className="text-gray-900">₹{(totals.cgst_amount + totals.sgst_amount + totals.igst_amount).toFixed(2)}</span>
+                                    </div>
+                                    {isSameState ? (
+                                        <>
+                                            <div className="flex justify-between text-[11px] text-gray-500 pl-2">
+                                                <span>CGST:</span>
+                                                <span>₹{totals.cgst_amount.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] text-gray-500 pl-2">
+                                                <span>SGST:</span>
+                                                <span>₹{totals.sgst_amount.toFixed(2)}</span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex justify-between text-[11px] text-amber-600 pl-2">
+                                            <span>IGST:</span>
+                                            <span>₹{totals.igst_amount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Total Amount */}
+                                <div className="flex justify-between text-base font-bold text-gray-800 bg-primary/5 px-3 py-2 rounded-xl border border-primary/20">
+                                    <span>Total Amount:</span>
+                                    <span className="text-primary text-lg">
+                                        ₹{(totals.total_amount + totals.cgst_amount + totals.sgst_amount + totals.igst_amount).toFixed(2)}
+                                    </span>
                                 </div>
                             </>
                         ) : (
-                            <div className="flex justify-between text-xs text-gray-400 text-amber-600">
-                                <span>IGST Amount:</span>
-                                <span>₹{totals.igst_amount.toFixed(2)}</span>
+                            /* Without GST: NO Tax breakdown, Total Amount shows the SAME value! */
+                            <div className="flex justify-between text-base font-bold text-gray-800 bg-primary/5 px-3 py-2 rounded-xl border border-primary/20">
+                                <span>Total Amount:</span>
+                                <span className="text-primary text-lg">
+                                    ₹{totals.total_amount.toFixed(2)}
+                                </span>
                             </div>
                         )}
-                        <div className="bg-amber-50 p-2.5 rounded-lg border border-amber-100 text-[11px] text-amber-800 leading-relaxed mb-2">
-                            💡 <strong>GST Policy:</strong> GST is calculated separately for reference but is <strong>not added</strong> to the final order payable amount.
-                        </div>
-                        <div className="flex justify-between text-base border-t border-gray-100 pt-2 font-bold text-gray-800">
-                            <span>Total Amount (Excl. GST):</span>
-                            <span className="text-primary text-lg">₹{totals.total_amount.toFixed(2)}</span>
-                        </div>
                     </div>
                 </div>
 
                 {/* Section 3.5: Payment Settlement Details */}
                 {(() => {
                     const totalRec = paymentHistory.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-                    const remPending = Math.max(0, totals.total_amount - totalRec);
-                    const pStatus = totalRec <= 0 ? 'Pending' : (totalRec >= totals.total_amount ? 'Fully Paid' : 'Partially Paid');
+                    const totalWithGst = formData.has_gst 
+                        ? (totals.total_amount + totals.cgst_amount + totals.sgst_amount + totals.igst_amount) 
+                        : totals.total_amount;
+                    const remPending = Math.max(0, totalWithGst - totalRec);
+                    const pStatus = totalRec <= 0 ? 'Pending' : (totalRec >= totalWithGst ? 'Fully Paid' : 'Partially Paid');
                     return (
                         <div className="pt-6 border-t border-gray-100 space-y-4">
                             <div className="flex justify-between items-center">
@@ -1266,7 +1391,13 @@ const CreateOrder = () => {
                             </div>
 
                             {/* Summary Card */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-150">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-150">
+                                <div>
+                                    <span className="block text-xs font-semibold text-gray-500 mb-0.5">Total Amount (Incl. GST)</span>
+                                    <span className="text-base font-extrabold text-primary">
+                                        ₹{totalWithGst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
                                 <div>
                                     <span className="block text-xs font-semibold text-gray-500 mb-0.5">Total Received Amount</span>
                                     <span className="text-base font-extrabold text-emerald-800">
@@ -1279,9 +1410,9 @@ const CreateOrder = () => {
                                         ₹{remPending.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="flex items-center justify-between md:justify-end">
-                                    <span className="text-xs font-semibold text-gray-500 mr-2">Payment Status:</span>
-                                    <span className={`text-xs uppercase font-extrabold px-3 py-1 rounded-full border ${
+                                <div className="flex flex-col justify-center">
+                                    <span className="text-xs font-semibold text-gray-500 mb-1">Payment Status:</span>
+                                    <span className={`text-xs uppercase font-extrabold px-3 py-1 rounded-full border text-center inline-block ${
                                         pStatus === 'Fully Paid' ? 'bg-green-100 text-green-800 border-green-300' :
                                         pStatus === 'Partially Paid' ? 'bg-amber-100 text-amber-800 border-amber-300' :
                                         'bg-red-100 text-red-800 border-red-300'

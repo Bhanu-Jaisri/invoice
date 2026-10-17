@@ -50,3 +50,12 @@
     -moz-appearance: textfield;
   }
 }
+
+@media print {
+  .pdf-hide {
+    display: none !important;
+  }
+  .pdf-show {
+    display: block !important;
+  }
+}

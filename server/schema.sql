@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS orders (
     sgst_amount DECIMAL(10, 2) DEFAULT 0,
     igst_amount DECIMAL(10, 2) DEFAULT 0,
     total_amount DECIMAL(10, 2),
+    has_gst BOOLEAN DEFAULT TRUE,
     status TEXT DEFAULT 'Active',
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -210,5 +211,6 @@ CREATE TABLE IF NOT EXISTS order_items (
     top_color TEXT,
     sheeter TEXT,
     designs TEXT,
-    designs_total_qty REAL
+    designs_total_qty REAL,
+    details TEXT
 );

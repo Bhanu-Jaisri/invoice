@@ -110,6 +110,18 @@ const OrderPreview = () => {
             element.style.border = 'none';
             element.style.borderRadius = '0';
 
+            // Hide PDF-excluded elements and show PDF-specific elements
+            const elementsToHide = element.querySelectorAll('.pdf-hide');
+            elementsToHide.forEach(el => {
+                el.dataset.origDisplay = el.style.display;
+                el.style.display = 'none';
+            });
+            const elementsToShow = element.querySelectorAll('.pdf-show');
+            elementsToShow.forEach(el => {
+                el.dataset.origDisplay = el.style.display;
+                el.style.display = 'block';
+            });
+
             if (document.fonts) {
                 await document.fonts.ready;
             }
@@ -126,6 +138,12 @@ const OrderPreview = () => {
             element.style.boxShadow = origShadow;
             element.style.border = origBorder;
             element.style.borderRadius = origRadius;
+            elementsToHide.forEach(el => {
+                el.style.display = el.dataset.origDisplay || '';
+            });
+            elementsToShow.forEach(el => {
+                el.style.display = el.dataset.origDisplay || '';
+            });
 
             const imgData = canvas.toDataURL('image/png', 1.0);
             const pdf = new jsPDF('portrait', 'mm', 'a4');
@@ -176,6 +194,8 @@ const OrderPreview = () => {
     const sgst = parseFloat(order.sgst_amount || 0);
     const igst = parseFloat(order.igst_amount || 0);
     const totalAmount = subtotal;
+    const totalAmountWithGst = subtotal + cgst + sgst + igst;
+    const hasGst = order.has_gst !== false && (order.has_gst === true || (cgst + sgst + igst) > 0);
 
     const orderItems = (order.items && order.items.length > 0
         ? order.items
@@ -193,7 +213,8 @@ const OrderPreview = () => {
             top_color: order.top_color,
             if_spl: order.if_spl,
             designs: order.designs,
-            designs_total_qty: order.designs_total_qty
+            designs_total_qty: order.designs_total_qty,
+            details: order.details
         }]).map(item => {
             let parsedDesigns = null;
             if (item.designs) {
@@ -246,14 +267,23 @@ const OrderPreview = () => {
                 <div className="h-2 bg-primary rounded-t-2xl -mt-6 -mx-6 md:-mt-8 md:-mx-8" />
 
                 {/* Content Header */}
-                <div className="flex justify-between items-center pt-4">
+                <div className="flex justify-between items-start pt-4 border-b border-gray-100 pb-4">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black tracking-tight text-gray-850 uppercase">{order.office_name}</h1>
-                    </div>
-                    <div className="text-right">
-                        <span className="bg-primary/10 text-primary font-bold text-xs px-3 py-1 rounded-full uppercase tracking-wider">
+                        <span className="inline-block mt-1 bg-primary/10 text-primary font-bold text-xs px-3 py-0.5 rounded-full uppercase tracking-wider">
                             ORDER FORM
                         </span>
+                    </div>
+                    {/* Top Right Corner Order Number & Date */}
+                    <div className="text-right bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 shadow-xs min-w-[170px]">
+                        <div className="mb-1.5">
+                            <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Order Number</span>
+                            <span className="text-lg font-black text-primary leading-tight">{order.order_number}</span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-1.5">
+                            <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Order Date</span>
+                            <span className="text-xs font-bold text-gray-700 leading-tight">{formatDate(order.order_date)}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -283,18 +313,10 @@ const OrderPreview = () => {
                     </div>
                 </div>
 
-                {/* Metadata Details */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 bg-gray-50/50 px-4 rounded-xl mt-6">
+                {/* Status & Approval Details - Visible on screen, hidden in PDF/Print */}
+                <div className="pdf-hide print:hidden grid grid-cols-2 md:grid-cols-4 gap-4 py-3 bg-gray-50/80 px-4 rounded-xl mt-4 border border-gray-200">
                     <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Order Number</span>
-                        <span className="text-sm font-bold text-gray-800">{order.order_number}</span>
-                    </div>
-                    <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Order Date</span>
-                        <span className="text-sm font-semibold text-gray-800">{formatDate(order.order_date)}</span>
-                    </div>
-                    <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Approval Status</span>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Approval Status</span>
                         <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full mt-0.5 ${
                             order.approval_status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                             order.approval_status === 'Rejected' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
@@ -304,42 +326,40 @@ const OrderPreview = () => {
                         </span>
                     </div>
                     <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase">Status</span>
-                        <span className="text-sm font-bold text-gray-800 uppercase tracking-wider">{order.status}</span>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</span>
+                        <span className="text-sm font-bold text-gray-800 uppercase tracking-wider">{order.status || 'Active'}</span>
+                    </div>
+                    <div>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Delivery Status</span>
+                        <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full mt-0.5 ${
+                            order.delivery_status === 'Delivered' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-gray-100 text-gray-650'
+                        }`}>
+                            {order.delivery_status || 'Not Delivered'}
+                        </span>
+                    </div>
+                    <div>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Payment Status</span>
+                        <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full mt-0.5 ${
+                            order.payment_status === 'Full Payment' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                            order.payment_status === 'Half Payment' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                            'bg-gray-100 text-gray-650'
+                        }`}>
+                            {order.payment_status || 'Not Received'}
+                        </span>
                     </div>
                 </div>
 
                 {order.approval_status !== 'Rejected' && (
-                    <div className="space-y-3 mt-3">
-                        <div className="grid grid-cols-3 gap-4 py-3 bg-blue-50/10 border border-blue-50/30 px-4 rounded-xl text-xs">
-                            <div>
-                                <span className="block font-bold text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Delivery Status</span>
-                                <span className={`inline-block font-bold px-2 py-0.5 rounded-full ${
-                                    order.delivery_status === 'Delivered' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-gray-100 text-gray-650'
-                                }`}>
-                                    {order.delivery_status || 'Not Delivered'}
-                                </span>
+                    <div className="pdf-hide print:hidden space-y-3 mt-3">
+                        {(order.payment_status === 'Half Payment' || order.payment_status === 'Full Payment') && (
+                            <div className="py-2.5 bg-blue-50/20 border border-blue-100 px-4 rounded-xl text-xs flex justify-between items-center">
+                                <span className="font-bold text-gray-500 uppercase tracking-wider text-[10px]">Initial Amount Received:</span>
+                                <span className="text-sm font-bold text-emerald-700">₹{parseFloat(order.payment_amount || 0).toFixed(2)}</span>
                             </div>
-                            <div>
-                                <span className="block font-bold text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Payment Status</span>
-                                <span className={`inline-block font-bold px-2 py-0.5 rounded-full ${
-                                    order.payment_status === 'Full Payment' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                    order.payment_status === 'Half Payment' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                                    'bg-gray-100 text-gray-650'
-                                }`}>
-                                    {order.payment_status || 'Not Received'}
-                                </span>
-                            </div>
-                            {(order.payment_status === 'Half Payment' || order.payment_status === 'Full Payment') && (
-                                <div>
-                                    <span className="block font-bold text-gray-400 uppercase tracking-wider text-[9px] mb-0.5">Amount Received</span>
-                                    <span className="text-xs font-bold text-gray-800">₹{parseFloat(order.payment_amount || 0).toFixed(2)}</span>
-                                </div>
-                            )}
-                        </div>
+                        )}
 
                         {order.queries && (
-                            <div className="py-3 bg-gray-50/50 border border-gray-100 px-4 rounded-xl text-xs">
+                            <div className="py-3 bg-gray-50/50 border border-gray-150 px-4 rounded-xl text-xs">
                                 <span className="block font-bold text-gray-400 uppercase tracking-wider text-[9px] mb-1">Queries</span>
                                 <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{order.queries}</p>
                             </div>
@@ -357,7 +377,7 @@ const OrderPreview = () => {
                                 <th className="p-3 font-semibold text-xs uppercase text-right w-20">Qty</th>
                                 <th className="p-3 font-semibold text-xs uppercase text-center w-16">Unit</th>
                                 <th className="p-3 font-semibold text-xs uppercase text-right w-28">Rate</th>
-                                <th className="p-3 font-semibold text-xs uppercase text-center w-16">GST %</th>
+                                {hasGst && <th className="p-3 font-semibold text-xs uppercase text-center w-16">GST %</th>}
                                 <th className="p-3 font-semibold text-xs uppercase text-right w-28">Total (INR)</th>
                             </tr>
                         </thead>
@@ -378,11 +398,11 @@ const OrderPreview = () => {
                                                 {item.bottom_color && <p><strong>Bottom Color:</strong> {item.bottom_color}</p>}
                                                 {item.top_color && <p><strong>Top Color:</strong> {item.top_color}</p>}
                                                 {item.if_spl && <p><strong>Special Specs:</strong> {item.if_spl}</p>}
-                                                {item.parsedDesigns && item.parsedDesigns.length > 0 && (
+                                                {item.parsedDesigns && item.parsedDesigns.filter(d => d && (d.quantity || d.design_number)).length > 0 && (
                                                     <div className="mt-2 bg-gray-55 p-2.5 rounded-lg border border-gray-200/80 max-w-xs space-y-1">
                                                         <p className="font-bold text-[10px] uppercase text-gray-400 tracking-wider">Design wise quantities:</p>
                                                         <div className="grid grid-cols-2 gap-x-4 text-[11px] text-gray-655">
-                                                            {item.parsedDesigns.map((d, dIdx) => (
+                                                            {item.parsedDesigns.filter(d => d && (d.quantity || d.design_number)).map((d, dIdx) => (
                                                                 <div key={dIdx} className="flex justify-between border-b border-gray-100 py-0.5">
                                                                     <span className="font-medium">Design {d.design_number}:</span>
                                                                     <span className="font-bold">{d.quantity}</span>
@@ -391,13 +411,19 @@ const OrderPreview = () => {
                                                         </div>
                                                     </div>
                                                 )}
+                                                {item.details && (
+                                                    <div className="mt-2 text-xs text-gray-700 bg-amber-50/40 p-2 rounded-lg border border-amber-200/60 leading-relaxed whitespace-pre-wrap">
+                                                        <span className="font-bold text-gray-800">Details: </span>
+                                                        {item.details}
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="p-3 text-right text-gray-800 font-semibold">{item.quantity}</td>
+                                        <td className="p-3 text-right text-gray-800 font-semibold">{parseFloat(item.quantity || 0) > 0 ? item.quantity : '-'}</td>
                                         <td className="p-3 text-center text-gray-505 font-medium">{item.unit || '1'}</td>
-                                        <td className="p-3 text-right text-gray-800 font-semibold">₹{parseFloat(item.price_per_unit || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-center text-gray-650 font-semibold">{item.gst_rate}%</td>
-                                        <td className="p-3 text-right font-bold text-gray-900">₹{itemAmount.toFixed(2)}</td>
+                                        <td className="p-3 text-right text-gray-800 font-semibold">{parseFloat(item.price_per_unit || 0) > 0 ? `₹${parseFloat(item.price_per_unit).toFixed(2)}` : '-'}</td>
+                                        {hasGst && <td className="p-3 text-center text-gray-650 font-semibold">{item.gst_rate}%</td>}
+                                        <td className="p-3 text-right font-bold text-gray-900">{itemAmount > 0 ? `₹${itemAmount.toFixed(2)}` : '₹0.00'}</td>
                                     </tr>
                                 );
                             })}
@@ -410,9 +436,22 @@ const OrderPreview = () => {
                     <div className="max-w-md text-xs text-gray-400 space-y-4 flex-1">
                         <div>
                             <span className="block font-bold uppercase tracking-wider text-[10px]">Amount in Words</span>
-                            <p className="text-sm font-bold text-gray-700 capitalize leading-relaxed">
-                                {formatCurrency(totalAmount)}
-                            </p>
+                            {hasGst ? (
+                                <>
+                                    {/* In View: show total with GST */}
+                                    <p className="pdf-hide print:hidden text-sm font-bold text-gray-700 capitalize leading-relaxed">
+                                        {formatCurrency(totalAmountWithGst)}
+                                    </p>
+                                    {/* In PDF/Print: show total excl GST */}
+                                    <p className="hidden print:block pdf-show text-sm font-bold text-gray-700 capitalize leading-relaxed">
+                                        {formatCurrency(totalAmount)}
+                                    </p>
+                                </>
+                            ) : (
+                                <p className="text-sm font-bold text-gray-700 capitalize leading-relaxed">
+                                    {formatCurrency(totalAmount)}
+                                </p>
+                            )}
                         </div>
 
                         {/* Bank Details */}
@@ -430,121 +469,132 @@ const OrderPreview = () => {
                                 </div>
                             </div>
                         )}
-
-                        {/* Terms & Conditions Below Bank Details */}
-                        <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-150 space-y-1">
-                            <span className="font-bold uppercase tracking-wider block text-gray-700 text-[10px] border-b border-gray-200 pb-1 mb-1">Terms & Conditions</span>
-                            {order.terms_conditions ? (
-                                <div className="whitespace-pre-line leading-relaxed text-gray-600 text-xs">{order.terms_conditions}</div>
-                            ) : (
-                                <div className="text-gray-600 text-xs space-y-0.5 leading-relaxed">
-                                    <p>1. Price is subject to market fluctuations unless order is finalized.</p>
-                                    <p>2. Subject to Sivakasi Jurisdiction.</p>
-                                </div>
-                            )}
-                        </div>
                     </div>
 
                     <div className="w-full md:w-80 space-y-2 text-sm text-gray-600">
-                        <div className="flex justify-between">
-                            <span>Subtotal Amount:</span>
-                            <span className="font-bold text-gray-800">₹{subtotal.toFixed(2)}</span>
-                        </div>
-                        {cgst > 0 && (
-                            <div className="flex justify-between text-xs text-gray-400">
-                                <span>CGST:</span>
-                                <span>₹{cgst.toFixed(2)}</span>
-                            </div>
-                        )}
-                        {sgst > 0 && (
-                            <div className="flex justify-between text-xs text-gray-400">
-                                <span>SGST:</span>
-                                <span>₹{sgst.toFixed(2)}</span>
-                            </div>
-                        )}
-                        {igst > 0 && (
-                            <div className="flex justify-between text-xs text-gray-400">
-                                <span>IGST:</span>
-                                <span>₹{igst.toFixed(2)}</span>
-                            </div>
-                        )}
-                        <div className="flex justify-between text-base border-t border-gray-100 pt-2 font-bold text-gray-900">
-                            <span>Total Amount (Excl. GST):</span>
-                            <span className="text-primary text-lg">₹{totalAmount.toFixed(2)}</span>
-                        </div>
-
-                        {/* Payment Settlement Summary */}
-                        {(() => {
-                            let history = [];
-                            if (order.payment_history) {
-                                try {
-                                    const parsed = typeof order.payment_history === 'string' ? JSON.parse(order.payment_history) : order.payment_history;
-                                    if (Array.isArray(parsed)) history = parsed;
-                                } catch (e) {}
-                            }
-                            
-                            let totalPaid = 0;
-                            if (history.length > 0) {
-                                totalPaid = history.reduce((sum, h) => sum + (parseFloat(h.amount) || 0), 0);
-                            } else {
-                                const adv = parseFloat(order.advance_amount || 0);
-                                const sec = parseFloat(order.second_payment_amount || 0);
-                                totalPaid = (adv + sec > 0) ? (adv + sec) : parseFloat(order.payment_amount || 0);
-                                if (adv > 0) history.push({ note: 'Advance Received', date: order.order_date, amount: adv });
-                                if (sec > 0) history.push({ note: 'Next Payment', date: order.order_date, amount: sec });
-                            }
-
-                            const pending = Math.max(0, totalAmount - totalPaid);
-                            const statusText = totalPaid <= 0 ? 'Pending' : (totalPaid >= totalAmount ? 'Fully Paid' : 'Partially Paid');
-
-                            return (
-                                <div className="mt-4 pt-3 border-t border-gray-150">
-                                    <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5 flex justify-between items-center">
-                                        <span>Payment Settlement Breakdown</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                                            statusText === 'Fully Paid' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                                            statusText === 'Partially Paid' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-red-100 text-red-800 border border-red-200'
-                                        }`}>
-                                            {statusText}
-                                        </span>
-                                    </div>
-
-                                    {history.length > 0 ? (
-                                        <div className="bg-gray-50 rounded-xl border border-gray-150 overflow-hidden mb-2">
-                                            <table className="w-full text-left text-[11px] border-collapse">
-                                                <thead>
-                                                    <tr className="bg-gray-100 text-gray-600 font-bold border-b border-gray-200">
-                                                        <th className="p-1.5 pl-2">Installment / Note</th>
-                                                        <th className="p-1.5 text-center">Date</th>
-                                                        <th className="p-1.5 pr-2 text-right">Amount Received</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {history.map((inst, idx) => (
-                                                        <tr key={idx}>
-                                                            <td className="p-1.5 pl-2 font-medium text-gray-700">{inst.note || `Payment #${idx + 1}`}</td>
-                                                            <td className="p-1.5 text-center text-gray-500">{formatDate(inst.date)}</td>
-                                                            <td className="p-1.5 pr-2 text-right font-bold text-emerald-700">₹{parseFloat(inst.amount || 0).toFixed(2)}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : null}
-
-                                    <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-xl border border-gray-150">
-                                        <div>
-                                            <span className="block text-[10px] font-bold text-gray-400 uppercase">Total Received</span>
-                                            <span className="font-bold text-emerald-800">₹{totalPaid.toFixed(2)}</span>
-                                        </div>
-                                        <div>
-                                            <span className="block text-[10px] font-bold text-amber-600 uppercase">Remaining Pending</span>
-                                            <span className="font-bold text-amber-800">₹{pending.toFixed(2)}</span>
-                                        </div>
-                                    </div>
+                        {hasGst ? (
+                            <>
+                                {/* TOTAL AMOUNT (EXCLU GST) - Always visible in View and PDF */}
+                                <div className="flex justify-between text-base border-t border-b border-gray-200 py-2 font-bold text-gray-900">
+                                    <span>TOTAL AMOUNT (EXCLU GST):</span>
+                                    <span className="text-primary text-lg">₹{totalAmount.toFixed(2)}</span>
                                 </div>
-                            );
-                        })()}
+
+                                {/* GST / TAX - Hidden in PDF/Print, visible in View */}
+                                <div className="pdf-hide print:hidden space-y-1 bg-gray-50/80 p-2.5 rounded-xl border border-gray-150 text-xs">
+                                    <div className="flex justify-between font-bold text-gray-700 text-sm">
+                                        <span>GST/TAX:</span>
+                                        <span className="text-gray-900">₹{(cgst + sgst + igst).toFixed(2)}</span>
+                                    </div>
+                                    {cgst > 0 && (
+                                        <div className="flex justify-between text-[11px] text-gray-500 pl-2">
+                                            <span>CGST:</span>
+                                            <span>₹{cgst.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {sgst > 0 && (
+                                        <div className="flex justify-between text-[11px] text-gray-500 pl-2">
+                                            <span>SGST:</span>
+                                            <span>₹{sgst.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {igst > 0 && (
+                                        <div className="flex justify-between text-[11px] text-amber-600 pl-2">
+                                            <span>IGST:</span>
+                                            <span>₹{igst.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* TOTAL AMOUNT - Hidden in PDF/Print, visible in View */}
+                                <div className="pdf-hide print:hidden flex justify-between text-base font-bold text-gray-900 bg-primary/5 px-2.5 py-1.5 rounded-xl border border-primary/20">
+                                    <span>TOTAL AMOUNT:</span>
+                                    <span className="text-primary text-lg">₹{totalAmountWithGst.toFixed(2)}</span>
+                                </div>
+                            </>
+                        ) : (
+                            /* WITHOUT GST: Only Total Amount showing the same value */
+                            <div className="flex justify-between text-base border-t border-b border-gray-200 py-2 font-bold text-gray-900 bg-primary/5 px-2.5 rounded-xl">
+                                <span>TOTAL AMOUNT:</span>
+                                <span className="text-primary text-lg">₹{totalAmount.toFixed(2)}</span>
+                            </div>
+                        )}
+
+                        {/* Payment Settlement Breakdown - Hidden in PDF/Print, visible in View */}
+                        <div className="pdf-hide print:hidden">
+                            {(() => {
+                                let history = [];
+                                if (order.payment_history) {
+                                    try {
+                                        const parsed = typeof order.payment_history === 'string' ? JSON.parse(order.payment_history) : order.payment_history;
+                                        if (Array.isArray(parsed)) history = parsed;
+                                    } catch (e) {}
+                                }
+                                
+                                let totalPaid = 0;
+                                if (history.length > 0) {
+                                    totalPaid = history.reduce((sum, h) => sum + (parseFloat(h.amount) || 0), 0);
+                                } else {
+                                    const adv = parseFloat(order.advance_amount || 0);
+                                    const sec = parseFloat(order.second_payment_amount || 0);
+                                    totalPaid = (adv + sec > 0) ? (adv + sec) : parseFloat(order.payment_amount || 0);
+                                    if (adv > 0) history.push({ note: 'Advance Received', date: order.order_date, amount: adv });
+                                    if (sec > 0) history.push({ note: 'Next Payment', date: order.order_date, amount: sec });
+                                }
+
+                                const targetTotal = hasGst ? totalAmountWithGst : totalAmount;
+                                const pending = Math.max(0, targetTotal - totalPaid);
+                                const statusText = totalPaid <= 0 ? 'Pending' : (totalPaid >= targetTotal ? 'Fully Paid' : 'Partially Paid');
+
+                                return (
+                                    <div className="mt-4 pt-3 border-t border-gray-150">
+                                        <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5 flex justify-between items-center">
+                                            <span>Payment Settlement Breakdown</span>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                                                statusText === 'Fully Paid' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                                statusText === 'Partially Paid' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-red-100 text-red-800 border border-red-200'
+                                            }`}>
+                                                {statusText}
+                                            </span>
+                                        </div>
+
+                                        {history.length > 0 ? (
+                                            <div className="bg-gray-50 rounded-xl border border-gray-150 overflow-hidden mb-2">
+                                                <table className="w-full text-left text-[11px] border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-gray-100 text-gray-600 font-bold border-b border-gray-200">
+                                                            <th className="p-1.5 pl-2">Installment / Note</th>
+                                                            <th className="p-1.5 text-center">Date</th>
+                                                            <th className="p-1.5 pr-2 text-right">Amount Received</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100">
+                                                        {history.map((inst, idx) => (
+                                                            <tr key={idx}>
+                                                                <td className="p-1.5 pl-2 font-medium text-gray-700">{inst.note || `Payment #${idx + 1}`}</td>
+                                                                <td className="p-1.5 text-center text-gray-500">{formatDate(inst.date)}</td>
+                                                                <td className="p-1.5 pr-2 text-right font-bold text-emerald-700">₹{parseFloat(inst.amount || 0).toFixed(2)}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ) : null}
+
+                                        <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-xl border border-gray-150">
+                                            <div>
+                                                <span className="block text-[10px] font-bold text-gray-400 uppercase">Total Received</span>
+                                                <span className="font-bold text-emerald-800">₹{totalPaid.toFixed(2)}</span>
+                                            </div>
+                                            <div>
+                                                <span className="block text-[10px] font-bold text-amber-600 uppercase">Remaining Pending</span>
+                                                <span className="font-bold text-amber-800">₹{pending.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     </div>
                 </div>
 

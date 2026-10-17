@@ -191,6 +191,7 @@ router.post('/', async (req, res) => {
             sgst_amount,
             igst_amount,
             total_amount,
+            has_gst,
             source_quotation_id,
             approval_status,
             delivery_status,
@@ -208,6 +209,14 @@ router.post('/', async (req, res) => {
         if (!customer_name || !order_date || !items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ error: 'Customer name, order date, and at least one item are required.' });
         }
+
+        const isGst = has_gst === undefined || has_gst === null 
+            ? (parseFloat(cgst_amount || 0) + parseFloat(sgst_amount || 0) + parseFloat(igst_amount || 0) > 0)
+            : (has_gst === true || has_gst === 'true' || has_gst === 1 || has_gst === '1');
+
+        const finalCgst = isGst ? parseFloat(cgst_amount || 0) : 0;
+        const finalSgst = isGst ? parseFloat(sgst_amount || 0) : 0;
+        const finalIgst = isGst ? parseFloat(igst_amount || 0) : 0;
 
         let historyArr = [];
         if (Array.isArray(payment_history)) {
@@ -227,10 +236,12 @@ router.post('/', async (req, res) => {
         }
 
         const finalPaymentAmount = (payment_amount !== undefined && payment_amount !== null && payment_amount !== '' && !advance_amount && !second_payment_amount && historyArr.length === 0) ? parseFloat(payment_amount) : computedPaid;
+        const orderTotalWithGst = parseFloat(total_amount || 0) + finalCgst + finalSgst + finalIgst;
+        const orderTargetTotal = isGst ? (orderTotalWithGst > 0 ? orderTotalWithGst : parseFloat(total_amount || 0)) : parseFloat(total_amount || 0);
         let finalPaymentStatus = payment_status || 'Not Received';
         if (finalPaymentAmount <= 0) {
             finalPaymentStatus = 'Not Received';
-        } else if (finalPaymentAmount >= parseFloat(total_amount)) {
+        } else if (finalPaymentAmount >= orderTargetTotal) {
             finalPaymentStatus = 'Fully Paid';
         } else {
             finalPaymentStatus = 'Partially Paid';
@@ -244,10 +255,10 @@ router.post('/', async (req, res) => {
         const firstItem = items[0];
         const item_type = firstItem.item_type || firstItem.item_category || '';
         const hsn_sac = firstItem.hsn_sac || '';
-        const quantity = parseFloat(firstItem.quantity || 0);
+        const quantity = parseFloat(firstItem.quantity || 0) || 0;
         const unit = firstItem.unit || '1';
-        const price_per_unit = parseFloat(firstItem.price_per_unit || 0);
-        const gst_rate = parseFloat(firstItem.gst_rate || 0);
+        const price_per_unit = parseFloat(firstItem.price_per_unit || 0) || 0;
+        const gst_rate = isGst ? parseFloat(firstItem.gst_rate || 0) : 0;
         const size = firstItem.size || null;
         const slip_number = firstItem.slip_number || null;
         const if_spl = firstItem.if_spl || null;
@@ -259,18 +270,18 @@ router.post('/', async (req, res) => {
             `INSERT INTO orders (
                 order_number, customer_name, customer_email, customer_mobile, gstin, customer_address, customer_state,
                 order_date, item_type, hsn_sac, quantity, unit, price_per_unit, gst_rate, 
-                subtotal, cgst_amount, sgst_amount, igst_amount, total_amount, user_id,
+                subtotal, cgst_amount, sgst_amount, igst_amount, total_amount, has_gst, user_id,
                 size, slip_number, if_spl, bottom_color, top_color, sheeter, source_quotation_id,
                 approval_status, delivery_status, calendars_delivered, slips_delivered,
                 queries, payment_status, payment_amount, advance_amount, second_payment_amount, payment_history
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-                $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
+                $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38
             ) RETURNING id`,
             [
                 order_number, customer_name, customer_email, customer_mobile, gstin, customer_address, customer_state || '',
                 order_date, item_type, hsn_sac, quantity, unit, price_per_unit, gst_rate,
-                parseFloat(subtotal), parseFloat(cgst_amount || 0), parseFloat(sgst_amount || 0), parseFloat(igst_amount || 0), parseFloat(total_amount), req.userId,
+                parseFloat(subtotal), finalCgst, finalSgst, finalIgst, parseFloat(total_amount), isGst, req.userId,
                 size, slip_number, if_spl, bottom_color, top_color, sheeter, source_quotation_id || null,
                 approval_status || 'Pending', delivery_status || 'Not Delivered', parseInt(calendars_delivered || 0, 10), parseInt(slips_delivered || 0, 10),
                 queries || null, finalPaymentStatus, finalPaymentAmount, parsedAdvance, parsedSecond, jsonHistoryStr
@@ -282,20 +293,22 @@ router.post('/', async (req, res) => {
         // Insert order items
         for (const item of items) {
             const itemTypeLabel = item.item_category === 'Other' ? item.custom_item_type : item.item_category;
+            const itemQty = parseFloat(item.quantity || 0) || 0;
+            const itemPrice = parseFloat(item.price_per_unit || 0) || 0;
             await db.query(
                 `INSERT INTO order_items (
                     order_id, item_type, hsn_sac, quantity, unit, price_per_unit, gst_rate, amount,
-                    size, slip_number, if_spl, bottom_color, top_color, sheeter, designs, designs_total_qty
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+                    size, slip_number, if_spl, bottom_color, top_color, sheeter, designs, designs_total_qty, details
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
                 [
                     orderId,
                     itemTypeLabel || item.item_type || '',
                     item.hsn_sac || null,
-                    parseFloat(item.quantity),
+                    itemQty,
                     item.unit || '1',
-                    parseFloat(item.price_per_unit),
+                    itemPrice,
                     parseFloat(item.gst_rate || 0),
-                    parseFloat(item.quantity) * parseFloat(item.price_per_unit),
+                    itemQty * itemPrice,
                     item.size || null,
                     item.slip_number || null,
                     item.if_spl || null,
@@ -303,7 +316,8 @@ router.post('/', async (req, res) => {
                     item.top_color || null,
                     item.sheeter || null,
                     item.designs ? JSON.stringify(item.designs) : null,
-                    item.designs_total_qty ? parseFloat(item.designs_total_qty) : null
+                    item.designs_total_qty ? parseFloat(item.designs_total_qty) : null,
+                    item.details || null
                 ]
             );
         }
@@ -352,6 +366,7 @@ router.put('/:id', async (req, res) => {
             sgst_amount,
             igst_amount,
             total_amount,
+            has_gst,
             source_quotation_id,
             approval_status,
             delivery_status,
@@ -369,6 +384,14 @@ router.put('/:id', async (req, res) => {
         if (!customer_name || !order_date || !items || !Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ error: 'Customer name, order date, and at least one item are required.' });
         }
+
+        const isGst = has_gst === undefined || has_gst === null 
+            ? (parseFloat(cgst_amount || 0) + parseFloat(sgst_amount || 0) + parseFloat(igst_amount || 0) > 0)
+            : (has_gst === true || has_gst === 'true' || has_gst === 1 || has_gst === '1');
+
+        const finalCgst = isGst ? parseFloat(cgst_amount || 0) : 0;
+        const finalSgst = isGst ? parseFloat(sgst_amount || 0) : 0;
+        const finalIgst = isGst ? parseFloat(igst_amount || 0) : 0;
 
         let historyArr = [];
         if (Array.isArray(payment_history)) {
@@ -388,10 +411,12 @@ router.put('/:id', async (req, res) => {
         }
 
         const finalPaymentAmount = (payment_amount !== undefined && payment_amount !== null && payment_amount !== '' && !advance_amount && !second_payment_amount && historyArr.length === 0) ? parseFloat(payment_amount) : computedPaid;
+        const orderTotalWithGst = parseFloat(total_amount || 0) + finalCgst + finalSgst + finalIgst;
+        const orderTargetTotal = isGst ? (orderTotalWithGst > 0 ? orderTotalWithGst : parseFloat(total_amount || 0)) : parseFloat(total_amount || 0);
         let finalPaymentStatus = payment_status || 'Not Received';
         if (finalPaymentAmount <= 0) {
             finalPaymentStatus = 'Not Received';
-        } else if (finalPaymentAmount >= parseFloat(total_amount)) {
+        } else if (finalPaymentAmount >= orderTargetTotal) {
             finalPaymentStatus = 'Fully Paid';
         } else {
             finalPaymentStatus = 'Partially Paid';
@@ -414,10 +439,10 @@ router.put('/:id', async (req, res) => {
         const firstItem = items[0];
         const item_type = firstItem.item_type || firstItem.item_category || '';
         const hsn_sac = firstItem.hsn_sac || '';
-        const quantity = parseFloat(firstItem.quantity || 0);
+        const quantity = parseFloat(firstItem.quantity || 0) || 0;
         const unit = firstItem.unit || '1';
-        const price_per_unit = parseFloat(firstItem.price_per_unit || 0);
-        const gst_rate = parseFloat(firstItem.gst_rate || 0);
+        const price_per_unit = parseFloat(firstItem.price_per_unit || 0) || 0;
+        const gst_rate = isGst ? parseFloat(firstItem.gst_rate || 0) : 0;
         const size = firstItem.size || null;
         const slip_number = firstItem.slip_number || null;
         const if_spl = firstItem.if_spl || null;
@@ -430,16 +455,16 @@ router.put('/:id', async (req, res) => {
                 order_number = $1, customer_name = $2, customer_email = $3, customer_mobile = $4, gstin = $5, 
                 customer_address = $6, customer_state = $7, order_date = $8, item_type = $9, hsn_sac = $10, 
                 quantity = $11, unit = $12, price_per_unit = $13, gst_rate = $14, subtotal = $15, 
-                cgst_amount = $16, sgst_amount = $17, igst_amount = $18, total_amount = $19,
-                size = $20, slip_number = $21, if_spl = $22, bottom_color = $23, top_color = $24, sheeter = $25,
-                source_quotation_id = $26, approval_status = $27, delivery_status = $28, calendars_delivered = $29, slips_delivered = $30,
-                queries = $31, payment_status = $32, payment_amount = $33, advance_amount = $34, second_payment_amount = $35, payment_history = $36
-             WHERE id = $37 AND user_id = $38`,
+                cgst_amount = $16, sgst_amount = $17, igst_amount = $18, total_amount = $19, has_gst = $20,
+                size = $21, slip_number = $22, if_spl = $23, bottom_color = $24, top_color = $25, sheeter = $26,
+                source_quotation_id = $27, approval_status = $28, delivery_status = $29, calendars_delivered = $30, slips_delivered = $31,
+                queries = $32, payment_status = $33, payment_amount = $34, advance_amount = $35, second_payment_amount = $36, payment_history = $37
+             WHERE id = $38 AND user_id = $39`,
             [
                 order_number, customer_name, customer_email, customer_mobile || null, gstin || null,
                 customer_address || null, customer_state || null, order_date, item_type, hsn_sac,
                 quantity, unit, price_per_unit, gst_rate, parseFloat(subtotal),
-                parseFloat(cgst_amount || 0), parseFloat(sgst_amount || 0), parseFloat(igst_amount || 0), parseFloat(total_amount),
+                finalCgst, finalSgst, finalIgst, parseFloat(total_amount), isGst,
                 size, slip_number, if_spl, bottom_color, top_color, sheeter, source_quotation_id || null,
                 approval_status || 'Pending', delivery_status || 'Not Delivered', parseInt(calendars_delivered || 0, 10), parseInt(slips_delivered || 0, 10),
                 queries || null, finalPaymentStatus, finalPaymentAmount, parsedAdvance, parsedSecond, jsonHistoryStr,
@@ -453,20 +478,22 @@ router.put('/:id', async (req, res) => {
         // Insert new items
         for (const item of items) {
             const itemTypeLabel = item.item_category === 'Other' ? item.custom_item_type : item.item_category;
+            const itemQty = parseFloat(item.quantity || 0) || 0;
+            const itemPrice = parseFloat(item.price_per_unit || 0) || 0;
             await db.query(
                 `INSERT INTO order_items (
                     order_id, item_type, hsn_sac, quantity, unit, price_per_unit, gst_rate, amount,
-                    size, slip_number, if_spl, bottom_color, top_color, sheeter, designs, designs_total_qty
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+                    size, slip_number, if_spl, bottom_color, top_color, sheeter, designs, designs_total_qty, details
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
                 [
                     id,
                     itemTypeLabel || item.item_type || '',
                     item.hsn_sac || null,
-                    parseFloat(item.quantity),
+                    itemQty,
                     item.unit || '1',
-                    parseFloat(item.price_per_unit),
+                    itemPrice,
                     parseFloat(item.gst_rate || 0),
-                    parseFloat(item.quantity) * parseFloat(item.price_per_unit),
+                    itemQty * itemPrice,
                     item.size || null,
                     item.slip_number || null,
                     item.if_spl || null,
@@ -474,7 +501,8 @@ router.put('/:id', async (req, res) => {
                     item.top_color || null,
                     item.sheeter || null,
                     item.designs ? JSON.stringify(item.designs) : null,
-                    item.designs_total_qty ? parseFloat(item.designs_total_qty) : null
+                    item.designs_total_qty ? parseFloat(item.designs_total_qty) : null,
+                    item.details || null
                 ]
             );
         }
@@ -487,6 +515,39 @@ router.put('/:id', async (req, res) => {
         if (err.code === '23505') {
             return res.status(400).json({ error: `Order number already exists.` });
         }
+        res.status(500).json({ error: 'Server error: ' + err.message });
+    }
+});
+
+// Update delivery status & delivered quantities
+router.patch('/:id/delivery', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        const { delivery_status, delivered_qty } = req.body;
+
+        // Verify ownership
+        const checkRes = await db.query(
+            'SELECT id, item_type FROM orders WHERE id = $1 AND user_id = $2',
+            [id, req.userId]
+        );
+        if (checkRes.rows.length === 0) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const qty = parseInt(delivered_qty || 0, 10);
+
+        await db.query(
+            `UPDATE orders SET
+                delivery_status = $1,
+                calendars_delivered = $2,
+                slips_delivered = $3
+             WHERE id = $4 AND user_id = $5`,
+            [delivery_status || 'Not Delivered', qty, qty, id, req.userId]
+        );
+
+        res.json({ message: 'Delivery status updated successfully' });
+    } catch (err) {
+        console.error(err);
         res.status(500).json({ error: 'Server error: ' + err.message });
     }
 });

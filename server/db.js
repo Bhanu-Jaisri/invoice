@@ -252,6 +252,7 @@ const initDb = async () => {
             sgst_amount DECIMAL(10, 2) DEFAULT 0,
             igst_amount DECIMAL(10, 2) DEFAULT 0,
             total_amount DECIMAL(10, 2),
+            has_gst BOOLEAN DEFAULT TRUE,
             status TEXT DEFAULT 'Active',
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -293,7 +294,8 @@ const initDb = async () => {
             top_color TEXT,
             sheeter TEXT,
             designs TEXT,
-            designs_total_qty REAL
+            designs_total_qty REAL,
+            details TEXT
         );
     `);
 
@@ -307,6 +309,11 @@ const initDb = async () => {
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS advance_amount DECIMAL(10, 2) DEFAULT 0;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS second_payment_amount DECIMAL(10, 2) DEFAULT 0;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_history TEXT;
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS has_gst BOOLEAN DEFAULT TRUE;
+        ALTER TABLE order_items ADD COLUMN IF NOT EXISTS details TEXT;
+        ALTER TABLE order_items ALTER COLUMN quantity DROP NOT NULL;
+        ALTER TABLE order_items ALTER COLUMN price_per_unit DROP NOT NULL;
+        ALTER TABLE order_items ALTER COLUMN amount DROP NOT NULL;
     `);
     await runQuery('Allow NULL for customers mobile', `
         ALTER TABLE customers ALTER COLUMN mobile DROP NOT NULL;
