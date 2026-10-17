@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Search, FileText, Trash2, XCircle, Pencil, FileCheck, ShoppingBag, TrendingUp, Calendar, BookOpen, CreditCard, FileUp, Tag, CheckCircle, AlertCircle, Filter, ArrowUpRight, ArrowDownRight, Download, FileSpreadsheet, CheckSquare, Square, Loader2, X, SlidersHorizontal } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, XCircle, Pencil, FileCheck, ShoppingBag, TrendingUp, Calendar, BookOpen, CreditCard, FileUp, Tag, CheckCircle, AlertCircle, Filter, ArrowUpRight, ArrowDownRight, Download, FileSpreadsheet, CheckSquare, Square, Loader2, X, SlidersHorizontal, User, MapPin, RotateCcw } from 'lucide-react';
 
 const toYYYYMMDD = (val) => {
     if (!val) return '';
@@ -77,6 +77,7 @@ const COLUMN_CONFIGS = {
         { key: 'customer_mobile', label: 'Mobile', default: true },
         { key: 'customer_email', label: 'Email', default: false },
         { key: 'gstin', label: 'GSTIN', default: false },
+        { key: 'customer_address', label: 'Address', default: false },
         { key: 'item_type', label: 'Item Type', default: true },
         { key: 'quantity', label: 'Quantity', default: true },
         { key: 'price_per_unit', label: 'Price/Unit', default: true },
@@ -132,6 +133,8 @@ const Dashboard = () => {
     const [exportReportType, setExportReportType] = useState('invoices');
     const [selectedColumns, setSelectedColumns] = useState([]);
     const [generatingPdf, setGeneratingPdf] = useState(false);
+    const [exportCustomerFilter, setExportCustomerFilter] = useState('');
+    const [exportAddressFilter, setExportAddressFilter] = useState('');
 
     const openExportModal = (type = 'invoices') => {
         const rType = type === 'overview' ? 'invoices' : type;
@@ -139,6 +142,8 @@ const Dashboard = () => {
         const configs = COLUMN_CONFIGS[rType] || [];
         const defaults = configs.filter(c => c.default).map(c => c.key);
         setSelectedColumns(defaults);
+        setExportCustomerFilter('');
+        setExportAddressFilter('');
         setIsExportModalOpen(true);
     };
 
@@ -147,6 +152,8 @@ const Dashboard = () => {
         const configs = COLUMN_CONFIGS[newType] || [];
         const defaults = configs.filter(c => c.default).map(c => c.key);
         setSelectedColumns(defaults);
+        setExportCustomerFilter('');
+        setExportAddressFilter('');
     };
 
     const toggleColumn = (key) => {
@@ -227,7 +234,19 @@ const Dashboard = () => {
         }
     };
 
-    const getTargetExportItems = (type) => {
+    const getItemPartyName = (item, type) => {
+        if (!item) return '';
+        if (type === 'received-invoices') return item.vendor_name || '';
+        return item.customer_name || '';
+    };
+
+    const getItemAddress = (item, type) => {
+        if (!item) return '';
+        if (type === 'received-invoices') return item.vendor_address || '';
+        return item.customer_address || item.billing_address || '';
+    };
+
+    const getRawExportItems = (type) => {
         if (type === 'invoices') return invoices;
         if (type === 'received-invoices') return receivedInvoices;
         if (type === 'quotations') return quotations;
@@ -235,11 +254,42 @@ const Dashboard = () => {
         return [];
     };
 
+    const getTargetExportItems = (type) => {
+        const raw = getRawExportItems(type);
+        const custFilter = exportCustomerFilter.trim().toLowerCase();
+        const addrFilter = exportAddressFilter.trim().toLowerCase();
+
+        return raw.filter(item => {
+            if (custFilter) {
+                const pName = getItemPartyName(item, type).toLowerCase();
+                if (!pName.includes(custFilter)) return false;
+            }
+            if (addrFilter) {
+                const addr = getItemAddress(item, type).toLowerCase();
+                if (!addr.includes(addrFilter)) return false;
+            }
+            return true;
+        });
+    };
+
+    const getExportFileBaseName = (type) => {
+        let tag = '';
+        if (exportCustomerFilter.trim()) {
+            const cleanCust = exportCustomerFilter.trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25);
+            tag += `_${cleanCust}`;
+        }
+        if (exportAddressFilter.trim()) {
+            const cleanAddr = exportAddressFilter.trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25);
+            tag += `_${cleanAddr}`;
+        }
+        return `${type.toUpperCase()}_Report${tag}_${getTodayDateString()}`;
+    };
+
     const handleRunExportExcel = () => {
         const type = exportReportType;
         const targetItems = getTargetExportItems(type);
         if (targetItems.length === 0) {
-            alert('No records available to export.');
+            alert('No records available to export matching the selected filters.');
             return;
         }
 
@@ -264,9 +314,8 @@ const Dashboard = () => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        const today = getTodayDateString();
         link.href = url;
-        link.setAttribute('download', `${type.toUpperCase()}_Report_${today}.csv`);
+        link.setAttribute('download', `${getExportFileBaseName(type)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -276,8 +325,9 @@ const Dashboard = () => {
     const handleRunExportPDF = async () => {
         const type = exportReportType;
         const targetItems = getTargetExportItems(type);
+        const rawItems = getRawExportItems(type);
         if (targetItems.length === 0) {
-            alert('No records available to export.');
+            alert('No records available to export matching the selected filters.');
             return;
         }
 
@@ -325,6 +375,14 @@ const Dashboard = () => {
                               type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
                               type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
 
+            const filterNotes = [];
+            if (exportCustomerFilter.trim()) {
+                filterNotes.push(`Party: <strong>${exportCustomerFilter.trim()}</strong>`);
+            }
+            if (exportAddressFilter.trim()) {
+                filterNotes.push(`Address: <strong>${exportAddressFilter.trim()}</strong>`);
+            }
+
             pdfContainer.innerHTML = `
                 <div style="border-bottom: 2px solid #0923b5; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start;">
                     <div>
@@ -335,7 +393,8 @@ const Dashboard = () => {
                     <div style="text-align: right;">
                         <h2 style="margin: 0; font-size: 16px; font-weight: 800; color: #111827;">${titleText}</h2>
                         <p style="margin: 3px 0 0; font-size: 10px; color: #6b7280;">Date Generated: <strong>${formatDate(new Date())}</strong></p>
-                        <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Total Records: <strong>${targetItems.length}</strong></p>
+                        <p style="margin: 2px 0 0; font-size: 10px; color: #6b7280;">Total Records: <strong>${targetItems.length}</strong>${targetItems.length !== rawItems.length ? ` (filtered from ${rawItems.length})` : ''}</p>
+                        ${filterNotes.length > 0 ? `<p style="margin: 2px 0 0; font-size: 10px; color: #0923b5;">Filter: ${filterNotes.join(' | ')}</p>` : ''}
                     </div>
                 </div>
 
@@ -375,8 +434,7 @@ const Dashboard = () => {
                 heightLeft -= pageHeight;
             }
 
-            const today = getTodayDateString();
-            pdf.save(`${type.toUpperCase()}_Report_${today}.pdf`);
+            pdf.save(`${getExportFileBaseName(type)}.pdf`);
             setIsExportModalOpen(false);
         } catch (err) {
             console.error('PDF export error:', err);
@@ -2115,156 +2173,278 @@ const Dashboard = () => {
             )}
 
             {/* Custom Column Export Builder Modal */}
-            {isExportModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-xl overflow-hidden flex flex-col animate-fadeIn">
-                        {/* Modal Header */}
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 shrink-0">
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-800 flex items-center space-x-2">
-                                    <SlidersHorizontal size={20} className="text-primary" />
-                                    <span>Custom Report & Column Export</span>
-                                </h2>
-                                <p className="text-xs text-gray-500 mt-0.5">Select details & columns to include, then export as Excel or PDF.</p>
-                            </div>
-                            <button onClick={() => setIsExportModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100">
-                                <X size={20} />
-                            </button>
-                        </div>
+            {isExportModalOpen && (() => {
+                const rawExportItems = getRawExportItems(exportReportType);
+                const targetExportItems = getTargetExportItems(exportReportType);
+                const uniquePartyNames = Array.from(new Set(
+                    rawExportItems.map(item => getItemPartyName(item, exportReportType).trim()).filter(Boolean)
+                )).sort((a, b) => a.localeCompare(b));
+                const uniqueAddresses = Array.from(new Set(
+                    rawExportItems.map(item => getItemAddress(item, exportReportType).trim()).filter(Boolean)
+                )).sort((a, b) => a.localeCompare(b));
+                const isExportFilterActive = Boolean(exportCustomerFilter.trim() || exportAddressFilter.trim());
 
-                        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
-                            {/* 1. Report Type Selector */}
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">1. Select Report Type</label>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleReportTypeChange('invoices')}
-                                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                            exportReportType === 'invoices' ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        <FileText size={18} className="mb-1.5" />
-                                        <span>Sales Invoices</span>
-                                        <span className="text-[10px] opacity-75 font-normal">({invoices.length} total)</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleReportTypeChange('received-invoices')}
-                                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                            exportReportType === 'received-invoices' ? 'bg-purple-100 border-purple-600 text-purple-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        <FileUp size={18} className="mb-1.5" />
-                                        <span>Received Invoices</span>
-                                        <span className="text-[10px] opacity-75 font-normal">({receivedInvoices.length} total)</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleReportTypeChange('quotations')}
-                                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                            exportReportType === 'quotations' ? 'bg-blue-100 border-blue-600 text-blue-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        <FileCheck size={18} className="mb-1.5" />
-                                        <span>Quotations</span>
-                                        <span className="text-[10px] opacity-75 font-normal">({quotations.length} total)</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleReportTypeChange('orders')}
-                                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                            exportReportType === 'orders' ? 'bg-amber-100 border-amber-600 text-amber-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        <ShoppingBag size={18} className="mb-1.5" />
-                                        <span>Order Forms</span>
-                                        <span className="text-[10px] opacity-75 font-normal">({orders.length} total)</span>
-                                    </button>
+                return (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-xl overflow-hidden flex flex-col animate-fadeIn">
+                            {/* Modal Header */}
+                            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 shrink-0">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-800 flex items-center space-x-2">
+                                        <SlidersHorizontal size={20} className="text-primary" />
+                                        <span>Custom Report & Column Export</span>
+                                    </h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">Filter by customer or address, select columns, and download PDF or Excel.</p>
                                 </div>
+                                <button onClick={() => setIsExportModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100">
+                                    <X size={20} />
+                                </button>
                             </div>
 
-                            {/* 2. Column Selection */}
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                                        2. Choose Columns / Details to Include ({selectedColumns.length} selected)
-                                    </label>
-                                    <div className="flex space-x-2 text-[11px]">
+                            <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+                                {/* 1. Report Type Selector */}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">1. Select Report Type</label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                                         <button
                                             type="button"
-                                            onClick={selectAllColumns}
-                                            className="text-primary hover:underline font-bold"
+                                            onClick={() => handleReportTypeChange('invoices')}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                                                exportReportType === 'invoices' ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                            }`}
                                         >
-                                            Select All
+                                            <FileText size={18} className="mb-1.5" />
+                                            <span>Sales Invoices</span>
+                                            <span className="text-[10px] opacity-75 font-normal">({invoices.length} total)</span>
                                         </button>
-                                        <span className="text-gray-300">|</span>
+
                                         <button
                                             type="button"
-                                            onClick={deselectAllColumns}
-                                            className="text-gray-500 hover:underline font-bold"
+                                            onClick={() => handleReportTypeChange('received-invoices')}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                                                exportReportType === 'received-invoices' ? 'bg-purple-100 border-purple-600 text-purple-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                            }`}
                                         >
-                                            Deselect All
+                                            <FileUp size={18} className="mb-1.5" />
+                                            <span>Received Invoices</span>
+                                            <span className="text-[10px] opacity-75 font-normal">({receivedInvoices.length} total)</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleReportTypeChange('quotations')}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                                                exportReportType === 'quotations' ? 'bg-blue-100 border-blue-600 text-blue-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <FileCheck size={18} className="mb-1.5" />
+                                            <span>Quotations</span>
+                                            <span className="text-[10px] opacity-75 font-normal">({quotations.length} total)</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleReportTypeChange('orders')}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
+                                                exportReportType === 'orders' ? 'bg-amber-100 border-amber-600 text-amber-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <ShoppingBag size={18} className="mb-1.5" />
+                                            <span>Order Forms</span>
+                                            <span className="text-[10px] opacity-75 font-normal">({orders.length} total)</span>
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-white p-3.5 rounded-lg border border-gray-200 max-h-56 overflow-y-auto">
-                                    {(COLUMN_CONFIGS[exportReportType] || []).map(col => {
-                                        const isChecked = selectedColumns.includes(col.key);
-                                        return (
-                                            <label key={col.key} className="flex items-center space-x-2 text-xs text-gray-800 cursor-pointer hover:bg-gray-50 p-1.5 rounded-md transition-colors">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => toggleColumn(col.key)}
-                                                    className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-                                                />
-                                                <span className={isChecked ? 'font-bold text-gray-900' : 'text-gray-600'}>{col.label}</span>
+                                {/* 2. Filter by Particular Customer or Address */}
+                                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-3">
+                                    <div className="flex flex-wrap justify-between items-center gap-2">
+                                        <label className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center space-x-1.5">
+                                            <Filter size={14} className="text-primary" />
+                                            <span>2. Filter by Particular Customer or Address (Optional)</span>
+                                        </label>
+                                        <div className="flex items-center space-x-2">
+                                            <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
+                                                targetExportItems.length === 0
+                                                    ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                                    : isExportFilterActive
+                                                        ? 'bg-primary text-white shadow-xs'
+                                                        : 'bg-gray-200 text-gray-700'
+                                            }`}>
+                                                {targetExportItems.length} of {rawExportItems.length} records matching
+                                            </span>
+                                            {isExportFilterActive && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setExportCustomerFilter('');
+                                                        setExportAddressFilter('');
+                                                    }}
+                                                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 hover:underline"
+                                                    title="Reset customer and address filters"
+                                                >
+                                                    <RotateCcw size={12} />
+                                                    <span>Clear Filter</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {/* Customer / Party input */}
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center space-x-1">
+                                                <User size={13} className="text-indigo-600" />
+                                                <span>{exportReportType === 'received-invoices' ? 'Vendor / Supplier Name' : 'Customer Name'}</span>
                                             </label>
-                                        );
-                                    })}
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    list="export-customer-options"
+                                                    value={exportCustomerFilter}
+                                                    onChange={(e) => setExportCustomerFilter(e.target.value)}
+                                                    placeholder={exportReportType === 'received-invoices' ? 'Type or select vendor...' : 'Type or select customer...'}
+                                                    className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-7 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-xs"
+                                                />
+                                                {exportCustomerFilter && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExportCustomerFilter('')}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                                                        title="Clear customer"
+                                                    >
+                                                        <X size={13} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <datalist id="export-customer-options">
+                                                {uniquePartyNames.map((name, i) => (
+                                                    <option key={i} value={name} />
+                                                ))}
+                                            </datalist>
+                                        </div>
+
+                                        {/* Address input */}
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center space-x-1">
+                                                <MapPin size={13} className="text-indigo-600" />
+                                                <span>{exportReportType === 'received-invoices' ? 'Vendor Address / City' : 'Customer Address / City'}</span>
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    list="export-address-options"
+                                                    value={exportAddressFilter}
+                                                    onChange={(e) => setExportAddressFilter(e.target.value)}
+                                                    placeholder="Type or select address/city..."
+                                                    className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-7 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-xs"
+                                                />
+                                                {exportAddressFilter && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExportAddressFilter('')}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                                                        title="Clear address"
+                                                    >
+                                                        <X size={13} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <datalist id="export-address-options">
+                                                {uniqueAddresses.map((addr, i) => (
+                                                    <option key={i} value={addr} />
+                                                ))}
+                                            </datalist>
+                                        </div>
+                                    </div>
+
+                                    {targetExportItems.length === 0 && (
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-lg flex items-center space-x-2">
+                                            <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                                            <span>No records match this customer or address filter. Change or clear the filter to export records.</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 3. Column Selection */}
+                                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                            3. Choose Columns / Details to Include ({selectedColumns.length} selected)
+                                        </label>
+                                        <div className="flex space-x-2 text-[11px]">
+                                            <button
+                                                type="button"
+                                                onClick={selectAllColumns}
+                                                className="text-primary hover:underline font-bold"
+                                            >
+                                                Select All
+                                            </button>
+                                            <span className="text-gray-300">|</span>
+                                            <button
+                                                type="button"
+                                                onClick={deselectAllColumns}
+                                                className="text-gray-500 hover:underline font-bold"
+                                            >
+                                                Deselect All
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-white p-3.5 rounded-lg border border-gray-200 max-h-52 overflow-y-auto">
+                                        {(COLUMN_CONFIGS[exportReportType] || []).map(col => {
+                                            const isChecked = selectedColumns.includes(col.key);
+                                            return (
+                                                <label key={col.key} className="flex items-center space-x-2 text-xs text-gray-800 cursor-pointer hover:bg-gray-50 p-1.5 rounded-md transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => toggleColumn(col.key)}
+                                                        className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                                                    />
+                                                    <span className={isChecked ? 'font-bold text-gray-900' : 'text-gray-600'}>{col.label}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer / Action Buttons */}
+                            <div className="p-4 border-t border-gray-100 bg-gray-50/80 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsExportModalOpen(false)}
+                                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-800 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+
+                                <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                                    <button
+                                        type="button"
+                                        onClick={handleRunExportExcel}
+                                        disabled={selectedColumns.length === 0 || targetExportItems.length === 0}
+                                        className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                    >
+                                        <FileSpreadsheet size={16} />
+                                        <span>Export Excel ({targetExportItems.length})</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleRunExportPDF}
+                                        disabled={generatingPdf || selectedColumns.length === 0 || targetExportItems.length === 0}
+                                        className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                    >
+                                        {generatingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                                        <span>Export PDF Report ({targetExportItems.length})</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Modal Footer / Action Buttons */}
-                        <div className="p-4 border-t border-gray-100 bg-gray-50/80 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => setIsExportModalOpen(false)}
-                                className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-800 transition-colors"
-                            >
-                                Cancel
-                            </button>
-
-                            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-                                <button
-                                    type="button"
-                                    onClick={handleRunExportExcel}
-                                    disabled={selectedColumns.length === 0}
-                                    className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50"
-                                >
-                                    <FileSpreadsheet size={16} />
-                                    <span>Export Excel (.csv)</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleRunExportPDF}
-                                    disabled={generatingPdf || selectedColumns.length === 0}
-                                    className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50"
-                                >
-                                    {generatingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-                                    <span>Export PDF Report</span>
-                                </button>
-                            </div>
-                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 };
