@@ -328,8 +328,8 @@ const Dashboard = () => {
         };
 
         const titleText = type === 'invoices' ? 'SALES TAX INVOICES REPORT' :
-                          type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
-                          type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
+            type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
+                type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
 
         const filterNotes = [];
         if (exportCityFilter.trim()) {
@@ -382,8 +382,8 @@ const Dashboard = () => {
         };
 
         const titleText = type === 'invoices' ? 'SALES TAX INVOICES REPORT' :
-                          type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
-                          type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
+            type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
+                type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
 
         const filterNotes = [];
         if (exportCityFilter.trim()) {
@@ -459,8 +459,8 @@ const Dashboard = () => {
             }).join('');
 
             const titleText = type === 'invoices' ? 'OUR SALES TAX INVOICES REPORT' :
-                              type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
-                              type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
+                type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
+                    type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
 
             const filterNotes = [];
             if (exportCityFilter.trim()) {
@@ -720,7 +720,7 @@ const Dashboard = () => {
         }
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`, { 
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}`, {
                 method: 'DELETE',
                 headers: { 'x-user-id': user ? user.id : '' }
             });
@@ -741,7 +741,7 @@ const Dashboard = () => {
         }
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}/cancel`, { 
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/invoices/${id}/cancel`, {
                 method: 'PATCH',
                 headers: { 'x-user-id': user ? user.id : '' }
             });
@@ -762,7 +762,7 @@ const Dashboard = () => {
         }
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quotations/${id}`, { 
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quotations/${id}`, {
                 method: 'DELETE',
                 headers: { 'x-user-id': user ? user.id : '' }
             });
@@ -783,7 +783,7 @@ const Dashboard = () => {
         }
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quotations/${id}/cancel`, { 
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/quotations/${id}/cancel`, {
                 method: 'PATCH',
                 headers: { 'x-user-id': user ? user.id : '' }
             });
@@ -855,7 +855,7 @@ const Dashboard = () => {
         }
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${id}`, { 
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${id}`, {
                 method: 'DELETE',
                 headers: { 'x-user-id': user ? user.id : '' }
             });
@@ -876,7 +876,7 @@ const Dashboard = () => {
         }
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${id}/cancel`, { 
+            const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/${id}/cancel`, {
                 method: 'PATCH',
                 headers: { 'x-user-id': user ? user.id : '' }
             });
@@ -903,13 +903,30 @@ const Dashboard = () => {
     // Calculate Orders Stats
     const activeOrders = orders.filter(o => o.status !== 'Cancelled');
     const totalOrderValue = activeOrders.reduce((acc, o) => acc + parseFloat(o.total_amount || 0), 0);
+    const totalOrderAmountReceived = activeOrders.reduce((acc, order) => {
+        let orderPaid = 0;
+        if (order.payment_history) {
+            try {
+                const parsed = typeof order.payment_history === 'string' ? JSON.parse(order.payment_history) : order.payment_history;
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    orderPaid = parsed.reduce((sum, h) => sum + (parseFloat(h.amount) || 0), 0);
+                }
+            } catch (e) { }
+        }
+        if (orderPaid === 0) {
+            const adv = parseFloat(order.advance_amount || 0);
+            const sec = parseFloat(order.second_payment_amount || 0);
+            orderPaid = (adv + sec > 0) ? (adv + sec) : parseFloat(order.payment_amount || 0);
+        }
+        return acc + orderPaid;
+    }, 0);
 
     // Helper to inspect if an order lacks rate or quantity
     const getOrderPricingStatus = (order) => {
-        const items = Array.isArray(order.items) && order.items.length > 0 
-            ? order.items 
+        const items = Array.isArray(order.items) && order.items.length > 0
+            ? order.items
             : [{ quantity: order.quantity, price_per_unit: order.price_per_unit }];
-        
+
         const lacksQty = items.some(it => it.quantity === null || it.quantity === undefined || it.quantity === '' || parseFloat(it.quantity) <= 0);
         const lacksRate = items.some(it => it.price_per_unit === null || it.price_per_unit === undefined || it.price_per_unit === '' || parseFloat(it.price_per_unit) <= 0);
 
@@ -920,6 +937,39 @@ const Dashboard = () => {
     };
 
     const ordersWithoutRateOrQty = activeOrders.filter(o => getOrderPricingStatus(o) !== null);
+
+    // Missing Order Sequence / Serial Numbers Detection (Only for Order Forms)
+    // E.g. If orders exist with sequences [1, 2, 3, 5, 6, 7, 9, 10], missing are [4, 8]
+    const { missingOrderSeqs, maxOrderSeq } = (() => {
+        if (!Array.isArray(orders) || orders.length === 0) {
+            return { missingOrderSeqs: [], maxOrderSeq: 0 };
+        }
+
+        const seqs = orders
+            .map(o => extractDocumentSeq(o.order_number))
+            .filter(seq => seq !== null && !isNaN(seq) && seq > 0);
+
+        if (seqs.length === 0) {
+            return { missingOrderSeqs: [], maxOrderSeq: 0 };
+        }
+
+        const seqSet = new Set(seqs);
+        const maxSeq = Math.max(...seqs);
+
+        // Calculate missing sequences up to maxSeq (capped at 2000 for browser safety)
+        const cap = Math.min(maxSeq, 2000);
+        const missing = [];
+        for (let i = 1; i <= cap; i++) {
+            if (!seqSet.has(i)) {
+                missing.push(i);
+            }
+        }
+
+        return {
+            missingOrderSeqs: missing,
+            maxOrderSeq: maxSeq
+        };
+    })();
 
     // Compute Product and Slip statistics from active orders
     let dailyCalendarQty = 0;
@@ -1206,15 +1256,15 @@ const Dashboard = () => {
                 <div>
                     <h2 className="text-xl font-bold text-gray-800">
                         {activeTab === 'overview' ? 'Dashboard Overview' :
-                         activeTab === 'invoices' ? 'Tax Invoices' :
-                         activeTab === 'quotations' ? 'Quotations' :
-                         'Order Forms'}
+                            activeTab === 'invoices' ? 'Tax Invoices' :
+                                activeTab === 'quotations' ? 'Quotations' :
+                                    'Order Forms'}
                     </h2>
                     <p className="text-xs text-gray-500 mt-0.5">
                         {activeTab === 'overview' ? 'Business summary, sales metrics & GST settlement' :
-                         activeTab === 'invoices' ? 'All tax invoices and billing history' :
-                         activeTab === 'quotations' ? 'Customer quotations and rate estimates' :
-                         'Calendar and dairy order forms with printing specifications'}
+                            activeTab === 'invoices' ? 'All tax invoices and billing history' :
+                                activeTab === 'quotations' ? 'Customer quotations and rate estimates' :
+                                    'Calendar and dairy order forms with printing specifications'}
                     </p>
                 </div>
 
@@ -1358,11 +1408,10 @@ const Dashboard = () => {
                                                         {formatDate(ord.order_date)} • {ord.item_type || 'Custom'}
                                                     </div>
                                                 </div>
-                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                                                    status?.missing === 'BOTH'
-                                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                                        : 'bg-amber-50 text-amber-800 border-amber-200'
-                                                }`}>
+                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border whitespace-nowrap ${status?.missing === 'BOTH'
+                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                                    }`}>
                                                     ⚠️ {status?.label}
                                                 </span>
                                             </div>
@@ -1397,62 +1446,10 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    {/* PREVIOUS MONTH GST PAYABLE HIGHLIGHT BANNER */}
-                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-500/20 relative overflow-hidden">
-                        <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
-                            <div className="space-y-1.5 max-w-xl">
-                                <div className="flex items-center space-x-2">
-                                    <span className="bg-indigo-500/20 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full border border-indigo-500/30 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Calendar size={13} />
-                                        Previous Month GST Settlement ({prevMonthName} {prevMonthYearStr})
-                                    </span>
-                                </div>
-                                <h2 className="text-xl sm:text-2xl font-black text-white pt-1">
-                                    {prevMonthNetGstPayable > 0 ? (
-                                        <span>Net GST We Need To Pay: <span className="text-amber-400">₹{prevMonthNetGstPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
-                                    ) : (
-                                        <span>Net GST We Need To Pay: <span className="text-emerald-400">₹0.00 (NO TAX DUE)</span></span>
-                                    )}
-                                </h2>
-                                <p className="text-xs text-indigo-200/80 leading-relaxed">
-                                    Sales Output GST collected minus Total Available ITC (including unclaimed July & August purchase credit) for <strong>{prevMonthName} {prevMonthYearStr}</strong>.
-                                    {prevMonthNetGstPayable < 0 && ` Excess ITC of ₹${Math.abs(prevMonthNetGstPayable).toFixed(2)} carries forward.`}
-                                </p>
-                            </div>
 
-                            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                                <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/10 text-center flex-1 lg:flex-none">
-                                    <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">Sales GST ({prevMonthName})</div>
-                                    <div className="text-base font-black text-emerald-300 mt-0.5">₹{prevMonthSalesGstCollected.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                    <div className="text-[9px] text-indigo-200/70 mt-0.5">{prevMonthSalesInvoices.length} Sales Invoices</div>
-                                </div>
-                                <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-xl border border-white/10 text-center flex-1 lg:flex-none">
-                                    <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider">Total Available ITC</div>
-                                    <div className="text-base font-black text-purple-300 mt-0.5">₹{prevMonthTotalAvailableItc.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                    <div className="text-[9px] text-indigo-200/70 mt-0.5">
-                                        {prevMonthPriorUnusedItc > 0 ? `Incl. ₹${prevMonthPriorUnusedItc.toFixed(0)} Prior ITC` : `${prevMonthPurchaseInvoices.length} Bills`}
-                                    </div>
-                                </div>
-                                <div className={`px-5 py-3 rounded-xl border text-center flex-1 lg:flex-none font-extrabold shadow-md ${
-                                    prevMonthNetGstPayable > 0 
-                                        ? 'bg-amber-500/20 border-amber-400/40 text-amber-300' 
-                                        : 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
-                                }`}>
-                                    <div className="text-[10px] opacity-80 uppercase tracking-wider">Net GST Liability</div>
-                                    <div className="text-lg font-black mt-0.5">
-                                        {prevMonthNetGstPayable > 0 ? `₹${prevMonthNetGstPayable.toFixed(2)}` : '₹0.00'}
-                                    </div>
-                                    <div className="text-[9px] opacity-80">
-                                        {prevMonthNetGstPayable > 0 ? 'Payable to Govt' : 'No Tax Due'}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     {/* Key Metrics Row */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
                             <div className="flex justify-between items-center">
                                 <span className="text-emerald-100 text-[11px] font-bold uppercase tracking-wider">Invoice Revenue</span>
@@ -1492,25 +1489,16 @@ const Dashboard = () => {
 
                         <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
                             <div className="flex justify-between items-center">
-                                <span className="text-cyan-100 text-[11px] font-bold uppercase tracking-wider">Quotation Value</span>
+                                <span className="text-cyan-100 text-[11px] font-bold uppercase tracking-wider">Amount Received From Orders</span>
                                 <CreditCard size={22} className="text-cyan-100" />
                             </div>
                             <div className="text-xl lg:text-2xl font-black mt-2">
-                                ₹{totalQuotationValue.toFixed(2)}
+                                ₹{totalOrderAmountReceived.toFixed(2)}
                             </div>
-                            <div className="text-[11px] text-cyan-100/80 mt-1">Active quotations</div>
+                            <div className="text-[11px] text-cyan-100/80 mt-1">Payments taken from orders</div>
                         </div>
 
-                        <div className="bg-gradient-to-br from-purple-600 to-indigo-800 p-5 rounded-2xl text-white shadow-lg transform hover:-translate-y-1 transition-all duration-300">
-                            <div className="flex justify-between items-center">
-                                <span className="text-purple-100 text-[11px] font-bold uppercase tracking-wider">GST Paid (Purchases)</span>
-                                <Tag size={22} className="text-purple-100" />
-                            </div>
-                            <div className="text-xl lg:text-2xl font-black mt-2">
-                                ₹{purchasesGstPaid.toFixed(2)}
-                            </div>
-                            <div className="text-[11px] text-purple-100/80 mt-1">Vendor bills ITC</div>
-                        </div>
+
                     </div>
 
                     {/* GST Settlement & ITC Calculation Widget */}
@@ -1533,11 +1521,10 @@ const Dashboard = () => {
                                         setSelectedYear(prevMonthYearStr);
                                         setSelectedMonth(prevMonthCodeStr);
                                     }}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border ${
-                                        selectedYear === prevMonthYearStr && selectedMonth === prevMonthCodeStr
-                                            ? 'bg-primary text-white border-primary shadow-xs'
-                                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                                    }`}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border ${selectedYear === prevMonthYearStr && selectedMonth === prevMonthCodeStr
+                                        ? 'bg-primary text-white border-primary shadow-xs'
+                                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                                        }`}
                                     title="Show GST calculation for previous month"
                                 >
                                     <Calendar size={13} />
@@ -1645,13 +1632,12 @@ const Dashboard = () => {
                             </div>
 
                             {/* Net Settlement Result */}
-                            <div className={`p-5 rounded-2xl border relative flex flex-col justify-between space-y-3 ${
-                                netGstPayable > 0 
-                                    ? 'bg-amber-50/80 border-amber-200 text-amber-900' 
-                                    : netGstPayable < 0 
-                                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' 
+                            <div className={`p-5 rounded-2xl border relative flex flex-col justify-between space-y-3 ${netGstPayable > 0
+                                ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                                : netGstPayable < 0
+                                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
                                     : 'bg-gray-50 border-gray-200 text-gray-800'
-                            }`}>
+                                }`}>
                                 <div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-bold uppercase tracking-wider">
@@ -1663,19 +1649,18 @@ const Dashboard = () => {
                                             <CheckCircle size={20} className="text-emerald-600" />
                                         )}
                                     </div>
-                                    <div className={`text-2xl font-black mt-2 ${
-                                        netGstPayable > 0 ? 'text-amber-900' : netGstPayable < 0 ? 'text-emerald-900' : 'text-gray-800'
-                                    }`}>
-                                        {netGstPayable > 0 
-                                            ? `₹${netGstPayable.toFixed(2)}` 
+                                    <div className={`text-2xl font-black mt-2 ${netGstPayable > 0 ? 'text-amber-900' : netGstPayable < 0 ? 'text-emerald-900' : 'text-gray-800'
+                                        }`}>
+                                        {netGstPayable > 0
+                                            ? `₹${netGstPayable.toFixed(2)}`
                                             : `₹0.00 (NO TAX DUE)`}
                                     </div>
                                     <div className="text-[11px] font-semibold mt-1 leading-snug">
-                                        {netGstPayable > 0 
-                                            ? 'Output GST exceeds available ITC. Amount to be paid to Government.' 
-                                            : netGstPayable < 0 
-                                            ? `Excess Input Credit (ITC) of ₹${Math.abs(netGstPayable).toFixed(2)} carries forward to next month.` 
-                                            : 'GST liability is fully set-off.'}
+                                        {netGstPayable > 0
+                                            ? 'Output GST exceeds available ITC. Amount to be paid to Government.'
+                                            : netGstPayable < 0
+                                                ? `Excess Input Credit (ITC) of ₹${Math.abs(netGstPayable).toFixed(2)} carries forward to next month.`
+                                                : 'GST liability is fully set-off.'}
                                     </div>
                                 </div>
 
@@ -1693,7 +1678,7 @@ const Dashboard = () => {
                         {/* Column 1: Order Category Breakdown */}
                         <div className="space-y-6">
                             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Order Breakdown</h3>
-                            
+
                             {/* Daily Calendars */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
                                 <div className="flex items-center space-x-4">
@@ -1703,10 +1688,6 @@ const Dashboard = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="text-sm font-bold text-gray-800">Daily Calendars</div>
                                         <div className="text-2xl font-black text-primary mt-0.5">{dailyCalendarQty.toLocaleString()} units</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-bold text-gray-400">Value</div>
-                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{dailyCalendarValue.toFixed(2)}</div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 text-xs">
@@ -1731,10 +1712,6 @@ const Dashboard = () => {
                                         <div className="text-sm font-bold text-gray-800">Monthly Calendars</div>
                                         <div className="text-2xl font-black text-primary mt-0.5">{monthlyCalendarQty.toLocaleString()} units</div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-bold text-gray-400">Value</div>
-                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{monthlyCalendarValue.toFixed(2)}</div>
-                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 text-xs">
                                     <div className="bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-semibold">
@@ -1757,10 +1734,6 @@ const Dashboard = () => {
                                     <div className="flex-1 min-w-0">
                                         <div className="text-sm font-bold text-gray-800">Dairies</div>
                                         <div className="text-2xl font-black text-primary mt-0.5">{dairyQty.toLocaleString()} units</div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-bold text-gray-400">Value</div>
-                                        <div className="text-lg font-extrabold text-gray-805 mt-0.5">₹{dairyValue.toFixed(2)}</div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-50 text-xs">
@@ -1872,7 +1845,7 @@ const Dashboard = () => {
 
             {/* Orders Stats */}
             {activeTab === 'orders' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-fadeIn">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Total Order Value (Active)</div>
                         <div className="text-3xl font-black text-gray-805 mt-2">
@@ -1887,450 +1860,536 @@ const Dashboard = () => {
                         <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Cancelled Orders</div>
                         <div className="text-3xl font-black text-red-600 mt-2">{orders.length - activeOrders.length}</div>
                     </div>
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <div className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Missing Order Serials</div>
+                        <div className={`text-3xl font-black mt-2 ${missingOrderSeqs.length > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                            {missingOrderSeqs.length > 0 ? `${missingOrderSeqs.length} Missing` : '0 Missing'}
+                        </div>
+                        <div className="text-[11px] text-gray-400 mt-1 font-medium truncate" title={missingOrderSeqs.length > 0 ? `Missing Serials: ${missingOrderSeqs.join(', ')}` : 'All consecutive'}>
+                            {missingOrderSeqs.length > 0 
+                                ? `Missing: #${missingOrderSeqs.slice(0, 4).join(', #')}${missingOrderSeqs.length > 4 ? ` (+${missingOrderSeqs.length - 4} more)` : ''}` 
+                                : `Continuous sequence #1 to #${maxOrderSeq}`}
+                        </div>
+                    </div>
                 </div>
             )}
 
             {/* List Table */}
             {activeTab !== 'overview' && (
                 <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
-                <div className="overflow-x-auto">
-                    {activeTab === 'invoices' && (
-                        /* Invoices Table */
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-100">
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Invoice #</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Total Amount</th>
-                                    <th className="p-4 font-bold text-xs text-purple-700 uppercase">GST Amount</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {loading ? (
-                                    <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Invoices...</td></tr>
-                                ) : invoices.map((invoice) => {
-                                    const cgst = parseFloat(invoice.cgst_amount || 0);
-                                    const sgst = parseFloat(invoice.sgst_amount || 0);
-                                    const igst = parseFloat(invoice.igst_amount || 0);
-                                    const totalGst = cgst + sgst + igst;
+                    <div className="overflow-x-auto">
+                        {activeTab === 'invoices' && (
+                            /* Invoices Table */
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Invoice #</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Total Amount</th>
+                                        <th className="p-4 font-bold text-xs text-purple-700 uppercase">GST Amount</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {loading ? (
+                                        <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Invoices...</td></tr>
+                                    ) : invoices.map((invoice) => {
+                                        const cgst = parseFloat(invoice.cgst_amount || 0);
+                                        const sgst = parseFloat(invoice.sgst_amount || 0);
+                                        const igst = parseFloat(invoice.igst_amount || 0);
+                                        const totalGst = cgst + sgst + igst;
 
-                                    return (
-                                        <tr key={invoice.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="p-4 font-bold text-primary">#{invoice.invoice_number}</td>
-                                            <td className="p-4 text-sm text-gray-600">{formatDate(invoice.invoice_date)}</td>
-                                            <td className="p-4 text-sm font-semibold text-gray-800">{invoice.customer_name}</td>
-                                            <td className="p-4 text-sm font-bold text-gray-900">₹{parseFloat(invoice.total_amount || 0).toFixed(2)}</td>
-                                            <td className="p-4 bg-purple-50/30">
-                                                <div className="text-sm font-black text-purple-800">
-                                                    ₹{totalGst.toFixed(2)}
-                                                </div>
-                                                {igst > 0 ? (
-                                                    <div className="text-[10px] font-bold text-indigo-700 mt-0.5">
-                                                        IGST: ₹{igst.toFixed(2)}
+                                        return (
+                                            <tr key={invoice.id} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="p-4 font-bold text-primary">#{invoice.invoice_number}</td>
+                                                <td className="p-4 text-sm text-gray-600">{formatDate(invoice.invoice_date)}</td>
+                                                <td className="p-4 text-sm font-semibold text-gray-800">{invoice.customer_name}</td>
+                                                <td className="p-4 text-sm font-bold text-gray-900">₹{parseFloat(invoice.total_amount || 0).toFixed(2)}</td>
+                                                <td className="p-4 bg-purple-50/30">
+                                                    <div className="text-sm font-black text-purple-800">
+                                                        ₹{totalGst.toFixed(2)}
                                                     </div>
-                                                ) : (
-                                                    <div className="text-[10px] font-semibold text-gray-500 mt-0.5 space-x-1.5">
-                                                        <span>CGST: ₹{cgst.toFixed(2)}</span>
-                                                        <span>|</span>
-                                                        <span>SGST: ₹{sgst.toFixed(2)}</span>
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="p-4">
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${invoice.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
-                                                    {invoice.status || 'Active'}
-                                                </span>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex items-center space-x-3">
-                                                    <Link to={`/invoice/${invoice.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Preview">
-                                                        <FileText size={18} />
-                                                    </Link>
-                                                    {invoice.status !== 'Cancelled' && (
-                                                        <Link to={`/edit/${invoice.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Invoice">
-                                                            <Pencil size={18} />
-                                                        </Link>
-                                                    )}
-                                                    {invoice.status !== 'Cancelled' && (
-                                                        <button
-                                                            onClick={() => handleCancelInvoice(invoice.id, invoice.invoice_number)}
-                                                            className="text-orange-500 hover:text-orange-700 transition-colors"
-                                                            title="Cancel Invoice"
-                                                        >
-                                                            <XCircle size={18} />
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleDeleteInvoice(invoice.id, invoice.invoice_number)}
-                                                        className="text-red-500 hover:text-red-700 transition-colors"
-                                                        title="Delete Permanently"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                {!loading && invoices.length === 0 && (
-                                    <tr>
-                                        <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
-                                            No tax invoices found. Create one to get started.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    )}
-
-                    {activeTab === 'quotations' && (
-                        /* Quotations Table */
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-100">
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Quotation #</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Item Category</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Amount</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
-                                    <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {loading ? (
-                                    <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Quotations...</td></tr>
-                                ) : quotations.map((q) => (
-                                    <tr key={q.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="p-4 font-bold text-primary">{q.quotation_number}</td>
-                                        <td className="p-4 text-sm text-gray-600">{formatDate(q.quotation_date)}</td>
-                                        <td className="p-4 text-sm font-semibold text-gray-800">{q.customer_name}</td>
-                                        <td className="p-4 text-sm text-gray-600">
-                                            <span className="bg-blue-50 text-primary font-semibold text-xs px-2.5 py-1 rounded-full">
-                                                {q.item_type}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-sm font-bold text-gray-900">₹{parseFloat(q.total_amount).toFixed(2)}</td>
-                                        <td className="p-4">
-                                            <div className="flex flex-col items-start gap-1">
-                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${q.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
-                                                    {q.status || 'Active'}
-                                                </span>
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                                    q.approval_status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-150' :
-                                                    q.approval_status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-150' :
-                                                    'bg-amber-50 text-amber-700 border-amber-150'
-                                                }`}>
-                                                    {q.approval_status || 'Pending'}
-                                                </span>
-                                                {q.approval_status !== 'Rejected' && q.delivery_status && (
-                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
-                                                        q.delivery_status === 'Delivered' ? 'bg-blue-50 text-blue-700 border-blue-150' : 'bg-gray-100 text-gray-500 border-gray-200'
-                                                    }`}>
-                                                        {q.delivery_status}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex items-center space-x-3">
-                                                <Link to={`/quotation/${q.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Quotation">
-                                                    <FileCheck size={18} />
-                                                </Link>
-                                                {q.status !== 'Cancelled' && (
-                                                    <Link to={`/create-order?from_quotation=${q.id}`} className="text-emerald-605 hover:text-emerald-800 transition-colors" title="Convert to Order Form">
-                                                        <ShoppingBag size={18} />
-                                                    </Link>
-                                                )}
-                                                {q.status !== 'Cancelled' && (
-                                                    <Link to={`/edit-quotation/${q.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Quotation">
-                                                        <Pencil size={18} />
-                                                    </Link>
-                                                )}
-                                                {q.status !== 'Cancelled' && (
-                                                    <button
-                                                        onClick={() => handleCancelQuotation(q.id, q.quotation_number)}
-                                                        className="text-orange-500 hover:text-orange-700 transition-colors"
-                                                        title="Cancel Quotation"
-                                                    >
-                                                        <XCircle size={18} />
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={() => handleDeleteQuotation(q.id, q.quotation_number)}
-                                                    className="text-red-500 hover:text-red-700 transition-colors"
-                                                    title="Delete Quotation"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {!loading && quotations.length === 0 && (
-                                    <tr>
-                                        <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
-                                            No quotations found. Create one to get started.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    )}
-
-                    {activeTab === 'orders' && (() => {
-                        const orderSearchLower = orderSearch.trim().toLowerCase();
-                        const baseOrders = (orderPricingFilter === 'MISSING'
-                            ? orders.filter(o => getOrderPricingStatus(o) !== null)
-                            : orders).slice().sort(compareOrdersDesc);
-
-                        const filteredOrders = orderSearchLower
-                            ? baseOrders.filter(order => {
-                                const nameMatch = (order.customer_name || '').toLowerCase().includes(orderSearchLower);
-                                const addressMatch = (order.customer_address || '').toLowerCase().includes(orderSearchLower);
-
-                                // Precise Order # matching (handles last /00 sequence value like "/00", "/01", "01", "1", "#1", etc.)
-                                const orderNum = (order.order_number || '').trim().toLowerCase();
-                                const slashParts = orderNum.split('/');
-                                const lastSeq = slashParts.length > 1 ? slashParts[slashParts.length - 1].trim() : orderNum;
-                                const lastSeqInt = parseInt(lastSeq, 10);
-
-                                let orderNumMatch = false;
-
-                                if (orderSearchLower.startsWith('/')) {
-                                    // Search starts with slash, e.g. "/00", "/01", "/1"
-                                    const afterSlash = orderSearchLower.slice(1).trim();
-                                    if (!afterSlash) {
-                                        orderNumMatch = true;
-                                    } else {
-                                        const afterSlashInt = parseInt(afterSlash, 10);
-                                        orderNumMatch = lastSeq === afterSlash ||
-                                                        lastSeq.startsWith(afterSlash) ||
-                                                        (!isNaN(afterSlashInt) && !isNaN(lastSeqInt) && afterSlashInt === lastSeqInt);
-                                    }
-                                } else {
-                                    // Clean query from prefix symbols like '#', 'no', 'od'
-                                    const cleanDigits = orderSearchLower.replace(/^(od|order|#|\s)+/i, '').trim();
-                                    const cleanInt = parseInt(cleanDigits, 10);
-
-                                    if (cleanDigits) {
-                                        if (lastSeq === cleanDigits) {
-                                            orderNumMatch = true;
-                                        } else if (!isNaN(cleanInt) && !isNaN(lastSeqInt) && cleanInt === lastSeqInt) {
-                                            orderNumMatch = true;
-                                        } else if (cleanDigits.length >= 2 && lastSeq.includes(cleanDigits)) {
-                                            orderNumMatch = true;
-                                        }
-                                    }
-
-                                    // Full order number or prefix match (e.g. typing "OD/2010" or "OD/20102026/01")
-                                    if (!orderNumMatch && (orderSearchLower.includes('od') || (orderSearchLower.length >= 4 && orderNum.includes(orderSearchLower)))) {
-                                        orderNumMatch = true;
-                                    }
-                                }
-
-                                // item_type is on the order level and also inside items array
-                                const itemTypeMatch = (order.item_type || '').toLowerCase().includes(orderSearchLower);
-                                const itemsMatch = Array.isArray(order.items) && order.items.some(it =>
-                                    (it.item_type || '').toLowerCase().includes(orderSearchLower)
-                                );
-                                return nameMatch || addressMatch || orderNumMatch || itemTypeMatch || itemsMatch;
-                            })
-                            : baseOrders;
-
-                        return (
-                            <>
-                                {/* Filter Toggle Tabs & Search Bar */}
-                                <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <button
-                                            type="button"
-                                            onClick={() => setOrderPricingFilter('ALL')}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                                orderPricingFilter === 'ALL'
-                                                    ? 'bg-primary text-white shadow-xs'
-                                                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                                            }`}
-                                        >
-                                            <span>All Orders</span>
-                                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${orderPricingFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-150 text-gray-600'}`}>
-                                                {orders.length}
-                                            </span>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setOrderPricingFilter('MISSING')}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                                orderPricingFilter === 'MISSING'
-                                                    ? 'bg-amber-600 text-white shadow-xs'
-                                                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-                                            }`}
-                                        >
-                                            <span>⚠️ Missing Rate / Qty</span>
-                                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${orderPricingFilter === 'MISSING' ? 'bg-white/20 text-white' : 'bg-amber-200/80 text-amber-900'}`}>
-                                                {ordersWithoutRateOrQty.length}
-                                            </span>
-                                        </button>
-                                    </div>
-
-                                    <div className="relative w-full sm:w-72">
-                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                        <input
-                                            type="text"
-                                            id="order-search-input"
-                                            placeholder="Search order #, /01, customer, item…"
-                                            value={orderSearch}
-                                            onChange={e => setOrderSearch(e.target.value)}
-                                            className="w-full pl-9 pr-9 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                                        />
-                                        {orderSearch && (
-                                            <button
-                                                onClick={() => setOrderSearch('')}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                                                title="Clear search"
-                                            >
-                                                <X size={14} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                {orderSearch && (
-                                    <div className="px-4 py-2 bg-blue-50/40 text-[11px] text-gray-600 border-b border-blue-100/50">
-                                        Showing <span className="font-bold text-primary">{filteredOrders.length}</span> of {baseOrders.length} orders
-                                    </div>
-                                )}
-
-                                {/* Orders Table */}
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="bg-gray-50 border-b border-gray-100">
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Order #</th>
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Item Category</th>
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Amount</th>
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
-                                            <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {loading ? (
-                                            <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Orders...</td></tr>
-                                        ) : filteredOrders.map((order) => {
-                                            const pricingStatus = getOrderPricingStatus(order);
-                                            return (
-                                            <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                                                <td className="p-4 font-bold text-primary">
-                                                    <div>{order.order_number}</div>
-                                                    {pricingStatus && (
-                                                        <span className={`inline-block mt-1 text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${
-                                                            pricingStatus.missing === 'BOTH'
-                                                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                                                : 'bg-amber-50 text-amber-800 border-amber-200'
-                                                        }`}>
-                                                            ⚠️ {pricingStatus.label}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-sm text-gray-600">{formatDate(order.order_date)}</td>
-                                                <td className="p-4 text-sm font-semibold text-gray-800">
-                                                    <div>{order.customer_name}</div>
-                                                    {order.customer_address && (
-                                                        <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">{order.customer_address}</div>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-sm text-gray-600">
-                                                    <span className="bg-blue-50 text-primary font-semibold text-xs px-2.5 py-1 rounded-full">
-                                                        {order.item_type}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-sm font-bold text-gray-900">
-                                                    <div>₹{parseFloat(order.total_amount).toFixed(2)}</div>
-                                                    {pricingStatus && (
-                                                        <span className="text-[10px] text-amber-600 font-medium block">Rate/Qty Pending</span>
+                                                    {igst > 0 ? (
+                                                        <div className="text-[10px] font-bold text-indigo-700 mt-0.5">
+                                                            IGST: ₹{igst.toFixed(2)}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[10px] font-semibold text-gray-500 mt-0.5 space-x-1.5">
+                                                            <span>CGST: ₹{cgst.toFixed(2)}</span>
+                                                            <span>|</span>
+                                                            <span>SGST: ₹{sgst.toFixed(2)}</span>
+                                                        </div>
                                                     )}
                                                 </td>
                                                 <td className="p-4">
-                                                    <div className="flex flex-col items-start gap-1">
-                                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${order.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
-                                                            {order.status || 'Active'}
-                                                        </span>
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                                            order.approval_status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-150' :
-                                                            order.approval_status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-150' :
-                                                            'bg-amber-50 text-amber-700 border-amber-150'
-                                                        }`}>
-                                                            {order.approval_status || 'Pending'}
-                                                        </span>
-                                                        {order.approval_status !== 'Rejected' && (
-                                                            <button
-                                                                onClick={() =>
-                                                                    order.delivery_status === 'Delivered'
-                                                                        ? handleMarkNotDelivered(order)
-                                                                        : openDeliveryModal(order)
-                                                                }
-                                                                title={order.delivery_status === 'Delivered' ? 'Click to mark as Not Delivered' : 'Click to mark as Delivered'}
-                                                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold border cursor-pointer transition-all hover:opacity-75 ${
-                                                                    order.delivery_status === 'Delivered' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-                                                                }`}
-                                                            >
-                                                                {order.delivery_status === 'Delivered'
-                                                                    ? `✓ Delivered${(order.calendars_delivered || order.slips_delivered) ? ` (${order.calendars_delivered || order.slips_delivered})` : ''}`
-                                                                    : '○ Mark Delivered'
-                                                                }
-                                                            </button>
-                                                        )}
-                                                    </div>
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${invoice.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+                                                        {invoice.status || 'Active'}
+                                                    </span>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center space-x-3">
-                                                        <Link to={`/order/${order.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Order Preview">
-                                                            <FileCheck size={18} />
+                                                        <Link to={`/invoice/${invoice.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Preview">
+                                                            <FileText size={18} />
                                                         </Link>
-                                                        {order.status !== 'Cancelled' && (
-                                                            <Link to={`/edit-order/${order.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Order Form">
+                                                        {invoice.status !== 'Cancelled' && (
+                                                            <Link to={`/edit/${invoice.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Invoice">
                                                                 <Pencil size={18} />
                                                             </Link>
                                                         )}
-                                                        {order.status !== 'Cancelled' && (
+                                                        {invoice.status !== 'Cancelled' && (
                                                             <button
-                                                                onClick={() => handleCancelOrder(order.id, order.order_number)}
+                                                                onClick={() => handleCancelInvoice(invoice.id, invoice.invoice_number)}
                                                                 className="text-orange-500 hover:text-orange-700 transition-colors"
-                                                                title="Cancel Order Form"
+                                                                title="Cancel Invoice"
                                                             >
                                                                 <XCircle size={18} />
                                                             </button>
                                                         )}
                                                         <button
-                                                            onClick={() => handleDeleteOrder(order.id, order.order_number)}
+                                                            onClick={() => handleDeleteInvoice(invoice.id, invoice.invoice_number)}
                                                             className="text-red-500 hover:text-red-700 transition-colors"
-                                                            title="Delete Order Form"
+                                                            title="Delete Permanently"
                                                         >
                                                             <Trash2 size={18} />
                                                         </button>
                                                     </div>
                                                 </td>
                                             </tr>
-                                            );
-                                        })}
-                                        {!loading && filteredOrders.length === 0 && (
-                                            <tr>
-                                                <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
-                                                    {orderSearch ? `No orders match "${orderSearch}".` : 'No order forms found. Create one to get started.'}
-                                                </td>
+                                        );
+                                    })}
+                                    {!loading && invoices.length === 0 && (
+                                        <tr>
+                                            <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
+                                                No tax invoices found. Create one to get started.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
+
+                        {activeTab === 'quotations' && (
+                            /* Quotations Table */
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-100">
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Quotation #</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Item Category</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Amount</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
+                                        <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {loading ? (
+                                        <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Quotations...</td></tr>
+                                    ) : quotations.map((q) => (
+                                        <tr key={q.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="p-4 font-bold text-primary">{q.quotation_number}</td>
+                                            <td className="p-4 text-sm text-gray-600">{formatDate(q.quotation_date)}</td>
+                                            <td className="p-4 text-sm font-semibold text-gray-800">{q.customer_name}</td>
+                                            <td className="p-4 text-sm text-gray-600">
+                                                <span className="bg-blue-50 text-primary font-semibold text-xs px-2.5 py-1 rounded-full">
+                                                    {q.item_type}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-sm font-bold text-gray-900">₹{parseFloat(q.total_amount).toFixed(2)}</td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${q.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+                                                        {q.status || 'Active'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${q.approval_status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-150' :
+                                                        q.approval_status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-150' :
+                                                            'bg-amber-50 text-amber-700 border-amber-150'
+                                                        }`}>
+                                                        {q.approval_status || 'Pending'}
+                                                    </span>
+                                                    {q.approval_status !== 'Rejected' && q.delivery_status && (
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${q.delivery_status === 'Delivered' ? 'bg-blue-50 text-blue-700 border-blue-150' : 'bg-gray-100 text-gray-500 border-gray-200'
+                                                            }`}>
+                                                            {q.delivery_status}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center space-x-3">
+                                                    <Link to={`/quotation/${q.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Quotation">
+                                                        <FileCheck size={18} />
+                                                    </Link>
+                                                    {q.status !== 'Cancelled' && (
+                                                        <Link to={`/create-order?from_quotation=${q.id}`} className="text-emerald-605 hover:text-emerald-800 transition-colors" title="Convert to Order Form">
+                                                            <ShoppingBag size={18} />
+                                                        </Link>
+                                                    )}
+                                                    {q.status !== 'Cancelled' && (
+                                                        <Link to={`/edit-quotation/${q.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Quotation">
+                                                            <Pencil size={18} />
+                                                        </Link>
+                                                    )}
+                                                    {q.status !== 'Cancelled' && (
+                                                        <button
+                                                            onClick={() => handleCancelQuotation(q.id, q.quotation_number)}
+                                                            className="text-orange-500 hover:text-orange-700 transition-colors"
+                                                            title="Cancel Quotation"
+                                                        >
+                                                            <XCircle size={18} />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleDeleteQuotation(q.id, q.quotation_number)}
+                                                        className="text-red-500 hover:text-red-700 transition-colors"
+                                                        title="Delete Quotation"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {!loading && quotations.length === 0 && (
+                                        <tr>
+                                            <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
+                                                No quotations found. Create one to get started.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        )}
+
+                        {activeTab === 'orders' && (() => {
+                            const orderSearchLower = orderSearch.trim().toLowerCase();
+                            const baseOrders = (orderPricingFilter === 'MISSING'
+                                ? orders.filter(o => getOrderPricingStatus(o) !== null)
+                                : orders).slice().sort(compareOrdersDesc);
+
+                            const filteredOrders = orderSearchLower
+                                ? baseOrders.filter(order => {
+                                    const nameMatch = (order.customer_name || '').toLowerCase().includes(orderSearchLower);
+                                    const addressMatch = (order.customer_address || '').toLowerCase().includes(orderSearchLower);
+
+                                    // Precise Order # matching (handles last /00 sequence value like "/00", "/01", "01", "1", "#1", etc.)
+                                    const orderNum = (order.order_number || '').trim().toLowerCase();
+                                    const slashParts = orderNum.split('/');
+                                    const lastSeq = slashParts.length > 1 ? slashParts[slashParts.length - 1].trim() : orderNum;
+                                    const lastSeqInt = parseInt(lastSeq, 10);
+
+                                    let orderNumMatch = false;
+
+                                    if (orderSearchLower.startsWith('/')) {
+                                        // Search starts with slash, e.g. "/00", "/01", "/1"
+                                        const afterSlash = orderSearchLower.slice(1).trim();
+                                        if (!afterSlash) {
+                                            orderNumMatch = true;
+                                        } else {
+                                            const afterSlashInt = parseInt(afterSlash, 10);
+                                            orderNumMatch = lastSeq === afterSlash ||
+                                                lastSeq.startsWith(afterSlash) ||
+                                                (!isNaN(afterSlashInt) && !isNaN(lastSeqInt) && afterSlashInt === lastSeqInt);
+                                        }
+                                    } else {
+                                        // Clean query from prefix symbols like '#', 'no', 'od'
+                                        const cleanDigits = orderSearchLower.replace(/^(od|order|#|\s)+/i, '').trim();
+                                        const cleanInt = parseInt(cleanDigits, 10);
+
+                                        if (cleanDigits) {
+                                            if (lastSeq === cleanDigits) {
+                                                orderNumMatch = true;
+                                            } else if (!isNaN(cleanInt) && !isNaN(lastSeqInt) && cleanInt === lastSeqInt) {
+                                                orderNumMatch = true;
+                                            } else if (cleanDigits.length >= 2 && lastSeq.includes(cleanDigits)) {
+                                                orderNumMatch = true;
+                                            }
+                                        }
+
+                                        // Full order number or prefix match (e.g. typing "OD/2010" or "OD/20102026/01")
+                                        if (!orderNumMatch && (orderSearchLower.includes('od') || (orderSearchLower.length >= 4 && orderNum.includes(orderSearchLower)))) {
+                                            orderNumMatch = true;
+                                        }
+                                    }
+
+                                    // item_type is on the order level and also inside items array
+                                    const itemTypeMatch = (order.item_type || '').toLowerCase().includes(orderSearchLower);
+                                    const itemsMatch = Array.isArray(order.items) && order.items.some(it =>
+                                        (it.item_type || '').toLowerCase().includes(orderSearchLower)
+                                    );
+                                    const gstinMatch = (order.gstin || '').toLowerCase().includes(orderSearchLower);
+                                    const isWithGst = order.has_gst !== false && (order.has_gst === true || parseFloat(order.cgst_amount || 0) + parseFloat(order.sgst_amount || 0) + parseFloat(order.igst_amount || 0) > 0);
+                                    const gstTagMatch = (isWithGst ? 'with gst' : 'without gst').includes(orderSearchLower);
+                                    const gstinTagMatch = (order.gstin && order.gstin.trim() ? 'with gstin' : 'without gstin').includes(orderSearchLower);
+
+                                    return nameMatch || addressMatch || orderNumMatch || itemTypeMatch || itemsMatch || gstinMatch || gstTagMatch || gstinTagMatch;
+                                })
+                                : baseOrders;
+
+                            return (
+                                <>
+                                    {/* Filter Toggle Tabs & Search Bar */}
+                                    <div className="p-4 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => setOrderPricingFilter('ALL')}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${orderPricingFilter === 'ALL'
+                                                    ? 'bg-primary text-white shadow-xs'
+                                                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                                                    }`}
+                                            >
+                                                <span>All Orders</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${orderPricingFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-150 text-gray-600'}`}>
+                                                    {orders.length}
+                                                </span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setOrderPricingFilter('MISSING')}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${orderPricingFilter === 'MISSING'
+                                                    ? 'bg-amber-600 text-white shadow-xs'
+                                                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                                                    }`}
+                                            >
+                                                <span>⚠️ Missing Rate / Qty</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${orderPricingFilter === 'MISSING' ? 'bg-white/20 text-white' : 'bg-amber-200/80 text-amber-900'}`}>
+                                                    {ordersWithoutRateOrQty.length}
+                                                </span>
+                                            </button>
+
+                                            {missingOrderSeqs.length > 0 && (
+                                                <div className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300 flex items-center gap-1.5">
+                                                    <span className="text-amber-700">Missing Serials:</span>
+                                                    <span className="font-mono font-black text-amber-900">
+                                                        #{missingOrderSeqs.slice(0, 4).join(', #')}{missingOrderSeqs.length > 4 ? ` (+${missingOrderSeqs.length - 4} more)` : ''}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="relative w-full sm:w-72">
+                                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                            <input
+                                                type="text"
+                                                id="order-search-input"
+                                                placeholder="Search order #, customer, GSTIN, item…"
+                                                value={orderSearch}
+                                                onChange={e => setOrderSearch(e.target.value)}
+                                                className="w-full pl-9 pr-9 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                            />
+                                            {orderSearch && (
+                                                <button
+                                                    onClick={() => setOrderSearch('')}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                                    title="Clear search"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Missing Order Numbers Banner (Only inside Order Forms) */}
+                                    {missingOrderSeqs.length > 0 ? (
+                                        <div className="m-4 p-4 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-300 rounded-2xl shadow-sm space-y-2.5 animate-fadeIn">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="px-2.5 py-1 bg-amber-600 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
+                                                        <AlertCircle size={14} />
+                                                        Missing Order Numbers
+                                                    </span>
+                                                    <span className="text-xs font-black text-amber-950">
+                                                        {missingOrderSeqs.length} {missingOrderSeqs.length === 1 ? 'number' : 'numbers'} missing in sequence (Between #1 and #{maxOrderSeq})
+                                                    </span>
+                                                </div>
+                                                <div className="text-[11px] text-amber-800 font-semibold bg-white/70 px-2.5 py-1 rounded-lg border border-amber-200">
+                                                    e.g. 1, 2, 3, 5, 6, 7, 9, 10 → Missing: <strong>4, 8</strong>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                                <span className="text-xs font-bold text-amber-900 mr-1">Missing Serials:</span>
+                                                {missingOrderSeqs.map(seq => (
+                                                    <span
+                                                        key={seq}
+                                                        className="px-2.5 py-0.5 bg-white border border-amber-300 text-amber-900 rounded-lg text-xs font-black shadow-2xs font-mono"
+                                                        title={`Order #${seq} is missing in serials sequence`}
+                                                    >
+                                                        #{seq}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : orders.length > 0 ? (
+                                        <div className="mx-4 my-3 px-4 py-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-800 animate-fadeIn">
+                                            <div className="flex items-center gap-2">
+                                                <CheckCircle size={15} className="text-emerald-600" />
+                                                <span className="font-semibold">
+                                                    Order Serial Numbers: <strong>All consecutive</strong> (No missing order numbers from #1 to #{maxOrderSeq})
+                                                </span>
+                                            </div>
+                                            <span className="text-[11px] text-emerald-600 font-bold bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                                                {orders.length} Orders Verified
+                                            </span>
+                                        </div>
+                                    ) : null}
+                                    {orderSearch && (
+                                        <div className="px-4 py-2 bg-blue-50/40 text-[11px] text-gray-600 border-b border-blue-100/50">
+                                            Showing <span className="font-bold text-primary">{filteredOrders.length}</span> of {baseOrders.length} orders
+                                        </div>
+                                    )}
+
+                                    {/* Orders Table */}
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-50 border-b border-gray-100">
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Order #</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Date</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Customer</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Item Category</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Total Amount</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Status</th>
+                                                <th className="p-4 font-bold text-xs text-gray-400 uppercase">Actions</th>
                                             </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </>
-                        );
-                    })()}
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {loading ? (
+                                                <tr><td colSpan="7" className="p-8 text-center text-gray-400">Loading Orders...</td></tr>
+                                            ) : filteredOrders.map((order) => {
+                                                const pricingStatus = getOrderPricingStatus(order);
+                                                const hasGst = order.has_gst !== false && (order.has_gst === true || parseFloat(order.cgst_amount || 0) + parseFloat(order.sgst_amount || 0) + parseFloat(order.igst_amount || 0) > 0);
+                                                return (
+                                                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                                                        <td className="p-4 font-bold text-primary">
+                                                            <div>{order.order_number}</div>
+                                                            {pricingStatus && (
+                                                                <span className={`inline-block mt-1 text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${pricingStatus.missing === 'BOTH'
+                                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                                                    }`}>
+                                                                    ⚠️ {pricingStatus.label}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-sm text-gray-600">{formatDate(order.order_date)}</td>
+                                                        <td className="p-4 text-sm font-semibold text-gray-800">
+                                                            <div>{order.customer_name}</div>
+                                                            {order.customer_address && (
+                                                                <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">{order.customer_address}</div>
+                                                            )}
+                                                            <div className="mt-1">
+                                                                {order.gstin && order.gstin.trim() ? (
+                                                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                                                        <span>GSTIN:</span> {order.gstin}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200 italic">
+                                                                        Without GSTIN
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-sm text-gray-600">
+                                                            <span className="bg-blue-50 text-primary font-semibold text-xs px-2.5 py-1 rounded-full">
+                                                                {order.item_type}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 text-sm font-bold text-gray-900">
+                                                            <div>₹{parseFloat(order.total_amount || 0).toFixed(2)}</div>
+                                                            <div className="mt-1">
+                                                                {hasGst ? (
+                                                                    <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                        With GST
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                                                        Without GST
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {pricingStatus && (
+                                                                <span className="text-[10px] text-amber-600 font-medium block mt-0.5">Rate/Qty Pending</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col items-start gap-1">
+                                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${order.status === 'Cancelled' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
+                                                                    {order.status || 'Active'}
+                                                                </span>
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${order.approval_status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-150' :
+                                                                    order.approval_status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-150' :
+                                                                        'bg-amber-50 text-amber-700 border-amber-150'
+                                                                    }`}>
+                                                                    {order.approval_status || 'Pending'}
+                                                                </span>
+                                                                {order.approval_status !== 'Rejected' && (
+                                                                    <button
+                                                                        onClick={() =>
+                                                                            order.delivery_status === 'Delivered'
+                                                                                ? handleMarkNotDelivered(order)
+                                                                                : openDeliveryModal(order)
+                                                                        }
+                                                                        title={order.delivery_status === 'Delivered' ? 'Click to mark as Not Delivered' : 'Click to mark as Delivered'}
+                                                                        className={`px-2 py-0.5 rounded-full text-[9px] font-bold border cursor-pointer transition-all hover:opacity-75 ${order.delivery_status === 'Delivered' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                                                                            }`}
+                                                                    >
+                                                                        {order.delivery_status === 'Delivered'
+                                                                            ? `✓ Delivered${(order.calendars_delivered || order.slips_delivered) ? ` (${order.calendars_delivered || order.slips_delivered})` : ''}`
+                                                                            : '○ Mark Delivered'
+                                                                        }
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex items-center space-x-3">
+                                                                <Link to={`/order/${order.id}`} className="text-gray-500 hover:text-primary transition-colors" title="View Order Preview">
+                                                                    <FileCheck size={18} />
+                                                                </Link>
+                                                                {order.status !== 'Cancelled' && (
+                                                                    <Link to={`/edit-order/${order.id}`} className="text-blue-500 hover:text-blue-700 transition-colors" title="Edit Order Form">
+                                                                        <Pencil size={18} />
+                                                                    </Link>
+                                                                )}
+                                                                {order.status !== 'Cancelled' && (
+                                                                    <button
+                                                                        onClick={() => handleCancelOrder(order.id, order.order_number)}
+                                                                        className="text-orange-500 hover:text-orange-700 transition-colors"
+                                                                        title="Cancel Order Form"
+                                                                    >
+                                                                        <XCircle size={18} />
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => handleDeleteOrder(order.id, order.order_number)}
+                                                                    className="text-red-500 hover:text-red-700 transition-colors"
+                                                                    title="Delete Order Form"
+                                                                >
+                                                                    <Trash2 size={18} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {!loading && filteredOrders.length === 0 && (
+                                                <tr>
+                                                    <td colSpan="7" className="p-12 text-center text-gray-400 text-sm">
+                                                        {orderSearch ? `No orders match "${orderSearch}".` : 'No order forms found. Create one to get started.'}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </>
+                            );
+                        })()}
+                    </div>
                 </div>
-            </div>
             )}
 
             {/* Delivery Quantity Modal */}
@@ -2437,9 +2496,8 @@ const Dashboard = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleReportTypeChange('invoices')}
-                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                                exportReportType === 'invoices' ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                            }`}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${exportReportType === 'invoices' ? 'bg-primary/10 border-primary text-primary font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                                }`}
                                         >
                                             <FileText size={18} className="mb-1.5" />
                                             <span>Sales Invoices</span>
@@ -2449,9 +2507,8 @@ const Dashboard = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleReportTypeChange('received-invoices')}
-                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                                exportReportType === 'received-invoices' ? 'bg-purple-100 border-purple-600 text-purple-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                            }`}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${exportReportType === 'received-invoices' ? 'bg-purple-100 border-purple-600 text-purple-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                                }`}
                                         >
                                             <FileUp size={18} className="mb-1.5" />
                                             <span>Received Invoices</span>
@@ -2461,9 +2518,8 @@ const Dashboard = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleReportTypeChange('quotations')}
-                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                                exportReportType === 'quotations' ? 'bg-blue-100 border-blue-600 text-blue-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                            }`}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${exportReportType === 'quotations' ? 'bg-blue-100 border-blue-600 text-blue-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                                }`}
                                         >
                                             <FileCheck size={18} className="mb-1.5" />
                                             <span>Quotations</span>
@@ -2473,9 +2529,8 @@ const Dashboard = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleReportTypeChange('orders')}
-                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${
-                                                exportReportType === 'orders' ? 'bg-amber-100 border-amber-600 text-amber-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                                            }`}
+                                            className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all ${exportReportType === 'orders' ? 'bg-amber-100 border-amber-600 text-amber-800 font-bold shadow-xs' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                                }`}
                                         >
                                             <ShoppingBag size={18} className="mb-1.5" />
                                             <span>Order Forms</span>
@@ -2492,13 +2547,12 @@ const Dashboard = () => {
                                             <span>2. Filter with Respect to City or Party (Optional)</span>
                                         </label>
                                         <div className="flex items-center space-x-2">
-                                            <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
-                                                targetExportItems.length === 0
-                                                    ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                                                    : isExportFilterActive
-                                                        ? 'bg-primary text-white shadow-xs'
-                                                        : 'bg-gray-200 text-gray-700'
-                                            }`}>
+                                            <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${targetExportItems.length === 0
+                                                ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                                : isExportFilterActive
+                                                    ? 'bg-primary text-white shadow-xs'
+                                                    : 'bg-gray-200 text-gray-700'
+                                                }`}>
                                                 {targetExportItems.length} of {rawExportItems.length} records matching
                                             </span>
                                             {isExportFilterActive && (
@@ -2530,9 +2584,8 @@ const Dashboard = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setExportCityFilter('')}
-                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                                                        !exportCityFilter ? 'bg-primary text-white font-bold shadow-xs' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
-                                                    }`}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${!exportCityFilter ? 'bg-primary text-white font-bold shadow-xs' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+                                                        }`}
                                                 >
                                                     All Cities ({rawExportItems.length})
                                                 </button>
@@ -2548,9 +2601,8 @@ const Dashboard = () => {
                                                             key={idx}
                                                             type="button"
                                                             onClick={() => setExportCityFilter(cityName)}
-                                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer flex items-center space-x-1 ${
-                                                                isSelected ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-200 text-gray-700 hover:bg-indigo-50'
-                                                            }`}
+                                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer flex items-center space-x-1 ${isSelected ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-200 text-gray-700 hover:bg-indigo-50'
+                                                                }`}
                                                         >
                                                             <span>{cityName}</span>
                                                             <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/20' : 'bg-gray-100 text-gray-600'}`}>{count}</span>

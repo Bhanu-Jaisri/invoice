@@ -118,7 +118,7 @@ const OrderPreview = () => {
         return (
             <div className="text-center my-12">
                 <h3 className="text-lg font-bold text-red-650">Order Form not found</h3>
-                <Link to="/" className="text-primary hover:underline mt-2 inline-block">Go back to dashboard</Link>
+                <Link to="/" state={{ activeTab: 'orders' }} className="text-primary hover:underline mt-2 inline-block font-semibold">Back to Order Forms</Link>
             </div>
         );
     }
@@ -226,9 +226,13 @@ const OrderPreview = () => {
         <div className="w-[800px] max-w-full mx-auto space-y-6">
             {/* Top Bar Actions */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                <Link to="/" className="flex items-center space-x-1.5 text-sm text-gray-550 hover:text-gray-800 transition-colors">
+                <Link 
+                    to="/" 
+                    state={{ activeTab: 'orders' }} 
+                    className="flex items-center space-x-1.5 text-sm font-semibold text-gray-600 hover:text-primary transition-colors"
+                >
                     <ArrowLeft size={18} />
-                    <span>Back to Dashboard</span>
+                    <span>Back to Order Forms</span>
                 </Link>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     {/* Excel Button */}

@@ -16,6 +16,8 @@ import Customers from './pages/Customers';
 import Products from './pages/Products';
 import ReceivedInvoices from './pages/ReceivedInvoices';
 import Vendors from './pages/Vendors';
+import DailyPasting from './pages/DailyPasting';
+import PastingWorkerSalaries from './pages/PastingWorkerSalaries';
 
 const ProtectedRoute = ({ children }) => {
     const user = localStorage.getItem('user');
@@ -58,6 +60,8 @@ function App() {
                     <Route path="products" element={<Products />} />
                     <Route path="received-invoices" element={<ReceivedInvoices />} />
                     <Route path="vendors" element={<Vendors />} />
+                    <Route path="daily-pasting" element={<DailyPasting />} />
+                    <Route path="pasting-worker-salaries" element={<PastingWorkerSalaries />} />
                     <Route path="profile" element={<Profile />} />
                 </Route>
             </Routes>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FilePlus, Menu, X, LogOut, User, FileText, ShoppingBag, Users, Package, FileUp, Building2 } from 'lucide-react';
+import { LayoutDashboard, FilePlus, Menu, X, LogOut, User, FileText, ShoppingBag, Users, Package, FileUp, Building2, Layers, Wallet } from 'lucide-react';
 import { applyTheme } from '../utils/theme';
 
 const Layout = () => {
@@ -135,6 +135,26 @@ const Layout = () => {
                         <span>Order Forms</span>
                     </Link>
 
+                    {/* 5. Daily Pasting */}
+                    <Link
+                        to="/daily-pasting"
+                        onClick={closeSidebarOnMobile}
+                        className={navCls(location.pathname === '/daily-pasting')}
+                    >
+                        <Layers size={18} />
+                        <span>Daily Pasting</span>
+                    </Link>
+
+                    {/* 6. Pasting Worker Salary */}
+                    <Link
+                        to="/pasting-worker-salaries"
+                        onClick={closeSidebarOnMobile}
+                        className={navCls(location.pathname === '/pasting-worker-salaries')}
+                    >
+                        <Wallet size={18} />
+                        <span>Worker Salaries</span>
+                    </Link>
+
                     {divider}
 
                     {/* 5. Customers */}
@@ -259,6 +279,10 @@ const Layout = () => {
                                 ? 'Received Invoices (Purchases)'
                                 : location.pathname === '/vendors'
                                 ? 'Received Vendors'
+                                : location.pathname === '/daily-pasting'
+                                ? 'Daily Pasting'
+                                : location.pathname === '/pasting-worker-salaries'
+                                ? 'Pasting Workers Salary'
                                 : location.pathname === '/profile'
                                 ? 'My Office Details'
                                 : location.pathname.startsWith('/invoice')

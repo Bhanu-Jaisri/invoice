@@ -339,6 +339,40 @@ const initDb = async () => {
         );
     `);
 
+    await runQuery('Create daily_pasting table', `
+        CREATE TABLE IF NOT EXISTS daily_pasting (
+            id SERIAL PRIMARY KEY,
+            user_id INT REFERENCES users(id) ON DELETE CASCADE,
+            pasting_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            customer_name VARCHAR(255) NOT NULL,
+            customer_mobile VARCHAR(50),
+            quantity REAL NOT NULL DEFAULT 1,
+            cardboard_type VARCHAR(255),
+            rate_per_cardboard DECIMAL(10, 2) NOT NULL DEFAULT 0,
+            pasting_charges DECIMAL(10, 2) DEFAULT 0,
+            total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
+            payment_status VARCHAR(50) DEFAULT 'Pending',
+            paid_amount DECIMAL(10, 2) DEFAULT 0,
+            pending_amount DECIMAL(10, 2) DEFAULT 0,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
+    await runQuery('Create pasting_worker_salaries table', `
+        CREATE TABLE IF NOT EXISTS pasting_worker_salaries (
+            id SERIAL PRIMARY KEY,
+            user_id INT REFERENCES users(id) ON DELETE CASCADE,
+            salary_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            worker_name VARCHAR(255),
+            quantity REAL NOT NULL DEFAULT 0,
+            salary DECIMAL(10, 2) NOT NULL DEFAULT 0,
+            payment_status VARCHAR(50) DEFAULT 'Paid',
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    `);
+
     console.log('Connected to PostgreSQL database and verified all tables');
 };
 

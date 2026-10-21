@@ -220,10 +220,10 @@ const Customers = () => {
                             <thead>
                                 <tr className="bg-gray-50/80 border-b border-gray-100 text-[11px] font-bold uppercase text-gray-400 tracking-wider">
                                     <th className="p-4">Customer Name</th>
-                                    <th className="p-4">Mobile Number</th>
-                                    <th className="p-4">GSTIN</th>
-                                    <th className="p-4">Email</th>
                                     <th className="p-4">Billing Address</th>
+                                    <th className="p-4">GSTIN</th>
+                                    <th className="p-4">Mobile Number</th>
+                                    <th className="p-4">Email</th>
                                     <th className="p-4 text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -233,21 +233,24 @@ const Customers = () => {
                                         <td className="p-4 font-bold text-gray-800">
                                             {customer.name}
                                         </td>
-                                        <td className="p-4 text-gray-700 font-medium">
-                                            {customer.mobile ? (
-                                                <div className="flex items-center space-x-1.5">
-                                                    <Phone size={14} className="text-gray-400 shrink-0" />
-                                                    <span>{customer.mobile}</span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-gray-350 text-[11px] italic">-</span>
-                                            )}
+                                        <td className="p-4 text-gray-600 max-w-xs" title={customer.billing_address}>
+                                            {customer.billing_address || <span className="text-gray-350 italic">-</span>}
                                         </td>
                                         <td className="p-4 text-gray-600">
                                             {customer.gstin ? (
                                                 <span className="font-mono font-bold text-gray-750 uppercase bg-gray-100 px-2 py-0.5 rounded text-[11px]">
                                                     {customer.gstin}
                                                 </span>
+                                            ) : (
+                                                <span className="text-gray-350 text-[11px] italic">-</span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-gray-700 font-medium">
+                                            {customer.mobile ? (
+                                                <div className="flex items-center space-x-1.5">
+                                                    <Phone size={14} className="text-gray-400 shrink-0" />
+                                                    <span>{customer.mobile}</span>
+                                                </div>
                                             ) : (
                                                 <span className="text-gray-350 text-[11px] italic">-</span>
                                             )}
@@ -261,9 +264,6 @@ const Customers = () => {
                                             ) : (
                                                 <span className="text-gray-350 text-[11px] italic">-</span>
                                             )}
-                                        </td>
-                                        <td className="p-4 text-gray-600 max-w-xs truncate" title={customer.billing_address}>
-                                            {customer.billing_address || <span className="text-gray-350 italic">-</span>}
                                         </td>
                                         <td className="p-4 text-right">
                                             <div className="flex justify-end items-center space-x-2">
