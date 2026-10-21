@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Printer, Download } from 'lucide-react';
+import { ArrowLeft, Printer, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { formatCurrency } from '../utils/numberToWords';
 import { applyTheme } from '../utils/theme';
+import { exportReportToWord, exportReportToExcel, extractCityFromAddress, exportOrderToWord, exportElementToA4Pdf } from '../utils/cityAndExportUtils';
 
 const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -70,7 +71,6 @@ const OrderPreview = () => {
 
     const handleDownload = async () => {
         try {
-            console.log('[PDF] Generating exact 1-page A4 Order PDF...');
             setGenerating(true);
             const element = document.getElementById('order-content');
 
@@ -97,73 +97,7 @@ const OrderPreview = () => {
             const orderNumStr = order.order_number || 'order';
             const pdfFilename = `${orderNumStr.replace(/\//g, '_')}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
 
-            const html2canvasModule = await import('html2canvas-pro');
-            const html2canvas = html2canvasModule.default || html2canvasModule;
-            const { jsPDF } = await import('jspdf');
-
-            // Temporarily hide outer card shadow/border for clean edge-to-edge PDF capture
-            const origShadow = element.style.boxShadow;
-            const origBorder = element.style.border;
-            const origRadius = element.style.borderRadius;
-
-            element.style.boxShadow = 'none';
-            element.style.border = 'none';
-            element.style.borderRadius = '0';
-
-            // Hide PDF-excluded elements and show PDF-specific elements
-            const elementsToHide = element.querySelectorAll('.pdf-hide');
-            elementsToHide.forEach(el => {
-                el.dataset.origDisplay = el.style.display;
-                el.style.display = 'none';
-            });
-            const elementsToShow = element.querySelectorAll('.pdf-show');
-            elementsToShow.forEach(el => {
-                el.dataset.origDisplay = el.style.display;
-                el.style.display = 'block';
-            });
-
-            if (document.fonts) {
-                await document.fonts.ready;
-            }
-
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
-
-            // Restore original styles on live DOM
-            element.style.boxShadow = origShadow;
-            element.style.border = origBorder;
-            element.style.borderRadius = origRadius;
-            elementsToHide.forEach(el => {
-                el.style.display = el.dataset.origDisplay || '';
-            });
-            elementsToShow.forEach(el => {
-                el.style.display = el.dataset.origDisplay || '';
-            });
-
-            const imgData = canvas.toDataURL('image/png', 1.0);
-            const pdf = new jsPDF('portrait', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-
-            let imgWidth = pdfWidth;
-            let imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-            if (imgHeight > pdfHeight) {
-                imgHeight = pdfHeight;
-                imgWidth = (canvas.width * pdfHeight) / canvas.height;
-            }
-
-            const xOffset = (pdfWidth - imgWidth) / 2;
-            const yOffset = 0;
-
-            pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-            pdf.save(pdfFilename);
-
+            await exportElementToA4Pdf(element, pdfFilename, { forcedOrientation: 'auto' });
             setGenerating(false);
         } catch (err) {
             console.error('[PDF] Error:', err);
@@ -231,6 +165,63 @@ const OrderPreview = () => {
             return { ...item, parsedDesigns };
         });
 
+    const customerCity = extractCityFromAddress(order.customer_address || '');
+
+    const handleDownloadWord = () => {
+        if (!order) return;
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const company = {
+            name: order.office_name || user.office_name || 'NRG JAISRI PRINTERS',
+            address: order.office_address || user.office_address || '',
+            gstin: order.office_gstin || user.office_gstin || '',
+            mobile: order.office_mobile || user.office_mobile || '',
+            email: order.office_email || user.office_email || ''
+        };
+
+        const cleanCust = (order.customer_name || 'customer').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanOrder = (order.order_number || 'order').replace(/[\/\\]/g, '_');
+        exportOrderToWord(order, orderItemsWithParsedDesigns, company, `${cleanOrder}_${cleanCust}`);
+    };
+
+    const handleDownloadExcel = () => {
+        if (!order) return;
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const company = {
+            name: order.office_name || user.office_name || 'NRG JAISRI PRINTERS',
+            address: order.office_address || user.office_address || '',
+            gstin: order.office_gstin || user.office_gstin || '',
+            mobile: order.office_mobile || user.office_mobile || ''
+        };
+        const headers = ['#', 'Particulars / Description', 'Size', 'Slip #', 'Qty', 'Unit', 'Rate (₹)', 'Total (₹)'];
+        const rows = (orderItemsWithParsedDesigns || []).map((item, idx) => [
+            idx + 1,
+            item.item_type || '-',
+            item.size || '-',
+            item.slip_number || '-',
+            item.quantity || 1,
+            item.unit || '1',
+            parseFloat(item.price_per_unit || 0).toFixed(2),
+            parseFloat(item.total_amount || 0).toFixed(2)
+        ]);
+        const filterNotes = [
+            `Order #: ${order.order_number}`,
+            `Date: ${formatDate(order.order_date)}`,
+            `Customer: ${order.customer_name}`,
+            customerCity ? `City: ${customerCity}` : null
+        ].filter(Boolean);
+
+        const cleanCust = (order.customer_name || 'customer').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const cleanOrder = (order.order_number || 'order').replace(/[\/\\]/g, '_');
+        exportReportToExcel({
+            title: `ORDER FORM - ${order.order_number}`,
+            company,
+            filterNotes,
+            headers,
+            rows,
+            filename: `${cleanOrder}_${cleanCust}`
+        });
+    };
+
     return (
         <div className="w-[800px] max-w-full mx-auto space-y-6">
             {/* Top Bar Actions */}
@@ -239,21 +230,45 @@ const OrderPreview = () => {
                     <ArrowLeft size={18} />
                     <span>Back to Dashboard</span>
                 </Link>
-                <div className="flex space-x-3 w-full sm:w-auto">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    {/* Excel Button */}
                     <button
-                        onClick={handlePrint}
-                        className="flex-1 sm:flex-none justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold transition-all text-sm flex items-center space-x-1.5"
+                        onClick={handleDownloadExcel}
+                        className="flex-1 sm:flex-none justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                        title="Download as Excel spreadsheet (.xls)"
                     >
-                        <Printer size={16} />
-                        <span>Print Order</span>
+                        <FileSpreadsheet size={16} className="text-emerald-600" />
+                        <span>Excel</span>
                     </button>
+
+                    {/* Word Button */}
+                    <button
+                        onClick={handleDownloadWord}
+                        className="flex-1 sm:flex-none justify-center bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs flex items-center space-x-1.5 shadow-xs cursor-pointer"
+                        title="Download as Microsoft Word document (.doc)"
+                    >
+                        <FileText size={16} className="text-blue-600" />
+                        <span>Word</span>
+                    </button>
+
+                    {/* PDF Button */}
                     <button
                         onClick={handleDownload}
                         disabled={generating}
-                        className="flex-1 sm:flex-none justify-center bg-primary hover:bg-secondary text-white px-5 py-2.5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all text-sm flex items-center space-x-1.5 disabled:opacity-50"
+                        className="flex-1 sm:flex-none justify-center bg-primary hover:bg-secondary text-white px-4 py-2.5 rounded-xl font-bold shadow-md hover:shadow-lg transition-all text-xs flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                        title="Download as PDF (.pdf)"
                     >
                         <Download size={16} />
-                        <span>{generating ? 'Downloading...' : 'Download PDF'}</span>
+                        <span>{generating ? 'Downloading...' : 'PDF'}</span>
+                    </button>
+
+                    {/* Print Order */}
+                    <button
+                        onClick={handlePrint}
+                        className="flex-1 sm:flex-none justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3.5 py-2.5 rounded-xl font-bold transition-all text-xs flex items-center space-x-1.5 cursor-pointer"
+                    >
+                        <Printer size={16} />
+                        <span>Print</span>
                     </button>
                 </div>
             </div>

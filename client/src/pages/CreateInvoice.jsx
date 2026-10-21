@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, Save } from 'lucide-react';
+import { extractCityFromAddress } from '../utils/cityAndExportUtils';
 
 const CreateInvoice = () => {
     const navigate = useNavigate();
@@ -386,7 +387,18 @@ const CreateInvoice = () => {
                             rows="3"
                             value={formData.customer_address}
                             onChange={e => setFormData({ ...formData, customer_address: e.target.value })}
+                            placeholder="Enter customer address..."
                         />
+                        {formData.customer_address && (() => {
+                            const detectedCity = extractCityFromAddress(formData.customer_address);
+                            return detectedCity ? (
+                                <div className="mt-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md flex items-center space-x-1.5 w-fit">
+                                    <span>📍 City:</span>
+                                    <strong className="text-indigo-950 font-bold">{detectedCity}</strong>
+                                    <span className="text-gray-400 text-[10px]">(Recognized for City-wise reports & Word/Excel/PDF downloads)</span>
+                                </div>
+                            ) : null;
+                        })()}
                     </div>
                 </div>
 

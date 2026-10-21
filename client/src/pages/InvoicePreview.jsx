@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Printer, Download } from 'lucide-react';
+import { ArrowLeft, Printer, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { formatCurrency } from '../utils/numberToWords';
 import { applyTheme } from '../utils/theme';
+import { exportInvoiceToWord, exportReportToExcel, extractCityFromAddress, exportElementToA4Pdf } from '../utils/cityAndExportUtils';
 
 const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -56,7 +57,6 @@ const InvoicePreview = () => {
 
     const handleDownload = async () => {
         try {
-            console.log('[PDF] Generating exact 1-page A4 PDF...');
             setGenerating(true);
             const element = document.getElementById('invoice-content');
 
@@ -83,61 +83,70 @@ const InvoicePreview = () => {
             const invoiceNumStr = invoice.invoice_number || 'invoice';
             const pdfFilename = `${invoiceNumStr.replace(/\//g, '_')}_${sanitizedCustomerName}_${dateFormatted}.pdf`;
 
-            const html2canvasModule = await import('html2canvas-pro');
-            const html2canvas = html2canvasModule.default || html2canvasModule;
-            const { jsPDF } = await import('jspdf');
-
-            // Temporarily hide outer card shadow/border for clean edge-to-edge PDF capture
-            const origShadow = element.style.boxShadow;
-            const origBorder = element.style.border;
-            const origRadius = element.style.borderRadius;
-
-            element.style.boxShadow = 'none';
-            element.style.border = 'none';
-            element.style.borderRadius = '0';
-
-            if (document.fonts) {
-                await document.fonts.ready;
-            }
-
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
-
-            // Restore original styles on live DOM
-            element.style.boxShadow = origShadow;
-            element.style.border = origBorder;
-            element.style.borderRadius = origRadius;
-
-            const imgData = canvas.toDataURL('image/png', 1.0);
-            const pdf = new jsPDF('portrait', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-
-            let imgWidth = pdfWidth;
-            let imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-            if (imgHeight > pdfHeight) {
-                imgHeight = pdfHeight;
-                imgWidth = (canvas.width * pdfHeight) / canvas.height;
-            }
-
-            const xOffset = (pdfWidth - imgWidth) / 2;
-            const yOffset = 0;
-
-            pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-            pdf.save(pdfFilename);
-
+            await exportElementToA4Pdf(element, pdfFilename, { forcedOrientation: 'portrait' });
             setGenerating(false);
         } catch (err) {
             console.error('[PDF] Error:', err);
             setGenerating(false);
             alert(`PDF creation failed: ${err.message}\n\nPlease try again or use Print -> Save as PDF.`);
         }
+    };
+
+    const handleDownloadWord = () => {
+        if (!invoice) return;
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const company = {
+            name: invoice.office_name || user.office_name || 'NRG JAISRI PRINTERS',
+            address: invoice.office_address || user.office_address || '',
+            gstin: invoice.office_gstin || user.office_gstin || '',
+            mobile: invoice.office_mobile || user.office_mobile || '',
+            email: invoice.office_email || user.office_email || ''
+        };
+        const sanitizedCustomerName = (invoice.customer_name || 'customer').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const invoiceNumStr = (invoice.invoice_number || 'invoice').replace(/[\/\\]/g, '_');
+        const filename = `${invoiceNumStr}_${sanitizedCustomerName}`;
+        exportInvoiceToWord(invoice, invoice.items, company, filename);
+    };
+
+    const handleDownloadExcel = () => {
+        if (!invoice) return;
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const company = {
+            name: invoice.office_name || user.office_name || 'NRG JAISRI PRINTERS',
+            address: invoice.office_address || user.office_address || '',
+            gstin: invoice.office_gstin || user.office_gstin || '',
+            mobile: invoice.office_mobile || user.office_mobile || '',
+            email: invoice.office_email || user.office_email || ''
+        };
+        const customerCity = extractCityFromAddress(invoice.customer_address || '');
+        const headers = ['#', 'Item Description', 'HSN/SAC', 'Quantity', 'Unit', 'Price/Unit (₹)', 'Amount (₹)'];
+        const rows = (invoice.items || []).map((item, idx) => [
+            idx + 1,
+            item.description || '-',
+            item.hsn_sac || '-',
+            item.quantity || 1,
+            item.unit || '1',
+            parseFloat(item.price_per_unit || 0).toFixed(2),
+            parseFloat(item.amount || ((item.quantity || 1) * (item.price_per_unit || 0))).toFixed(2)
+        ]);
+        const filterNotes = [
+            `Invoice #: ${invoice.invoice_number}`,
+            `Date: ${formatDate(invoice.invoice_date)}`,
+            `Customer: ${invoice.customer_name}`,
+            customerCity ? `City: ${customerCity}` : null
+        ].filter(Boolean);
+
+        const sanitizedCustomerName = (invoice.customer_name || 'customer').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const invoiceNumStr = (invoice.invoice_number || 'invoice').replace(/[\/\\]/g, '_');
+        const filename = `${invoiceNumStr}_${sanitizedCustomerName}`;
+        exportReportToExcel({
+            title: `TAX INVOICE - ${invoice.invoice_number}`,
+            company,
+            filterNotes,
+            headers,
+            rows,
+            filename
+        });
     };
 
     const autoDownloadTriggered = useRef(false);
@@ -166,21 +175,53 @@ const InvoicePreview = () => {
     const officeEmail = invoice.office_email || 'nrgjaisriprinters@gmail.com';
     const officeMobile = invoice.office_mobile || '9842719397';
     const officeState = invoice.office_state || 'Tamil Nadu';
+    const customerCity = extractCityFromAddress(invoice.customer_address || '');
 
     return (
         <div className="w-[800px] max-w-full mx-auto mb-10">
-            <div className="flex justify-between items-center mb-6 print:hidden">
-                <Link to="/" className="flex items-center text-gray-600 hover:text-primary">
-                    <ArrowLeft size={20} className="mr-2" />
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 print:hidden">
+                <Link to="/" className="flex items-center text-gray-600 hover:text-primary font-bold text-xs">
+                    <ArrowLeft size={18} className="mr-1.5" />
                     Back to Dashboard
                 </Link>
-                <div className="flex space-x-2">
-                    <button onClick={handleDownload} disabled={generating} className="flex items-center space-x-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
-                        <Download size={20} />
-                        <span>{generating ? 'Generating...' : 'Download PDF'}</span>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    {/* Excel Button */}
+                    <button
+                        onClick={handleDownloadExcel}
+                        className="flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex"
+                        title="Download Invoice as Excel (.xls)"
+                    >
+                        <FileSpreadsheet size={16} className="text-emerald-600" />
+                        <span>Excel</span>
                     </button>
-                    <button onClick={handlePrint} className="flex items-center space-x-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-secondary transition-colors">
-                        <Printer size={20} />
+
+                    {/* Word Button */}
+                    <button
+                        onClick={handleDownloadWord}
+                        className="flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex"
+                        title="Download Invoice as Microsoft Word Document (.doc)"
+                    >
+                        <FileText size={16} className="text-blue-600" />
+                        <span>Word</span>
+                    </button>
+
+                    {/* PDF Button */}
+                    <button
+                        onClick={handleDownload}
+                        disabled={generating}
+                        className="flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer flex"
+                        title="Download Invoice as PDF (.pdf)"
+                    >
+                        <Download size={16} className="text-rose-600" />
+                        <span>{generating ? 'Generating...' : 'PDF'}</span>
+                    </button>
+
+                    {/* Print Button */}
+                    <button
+                        onClick={handlePrint}
+                        className="flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-primary text-white hover:bg-secondary px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex"
+                    >
+                        <Printer size={16} />
                         <span>Print</span>
                     </button>
                 </div>
@@ -229,6 +270,12 @@ const InvoicePreview = () => {
                             <h3 className="text-primary font-bold text-lg mb-2">Bill To</h3>
                             <div className="text-xl font-bold text-gray-800">{invoice.customer_name}</div>
                             <div className="text-gray-600 whitespace-pre-line text-sm">{invoice.customer_address}</div>
+                            {customerCity && (
+                                <div className="mt-1 text-xs font-bold text-primary flex items-center space-x-1">
+                                    <span>📍 City:</span>
+                                    <span className="text-gray-900">{customerCity}</span>
+                                </div>
+                            )}
                             <div className="mt-2 text-sm">
                                 <span className="font-bold">GSTIN/UIN:</span> {invoice.gstin || 'N/A'}
                             </div>

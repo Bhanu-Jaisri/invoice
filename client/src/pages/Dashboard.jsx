@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Plus, Search, FileText, Trash2, XCircle, Pencil, FileCheck, ShoppingBag, TrendingUp, Calendar, BookOpen, CreditCard, FileUp, Tag, CheckCircle, AlertCircle, Filter, ArrowUpRight, ArrowDownRight, Download, FileSpreadsheet, CheckSquare, Square, Loader2, X, SlidersHorizontal, User, MapPin, RotateCcw } from 'lucide-react';
+import { Plus, Search, FileText, Trash2, XCircle, Pencil, FileCheck, ShoppingBag, TrendingUp, Calendar, BookOpen, CreditCard, FileUp, Tag, CheckCircle, AlertCircle, Filter, ArrowUpRight, ArrowDownRight, Download, FileSpreadsheet, CheckSquare, Square, Loader2, X, SlidersHorizontal, User, MapPin, RotateCcw, Building2 } from 'lucide-react';
+import { extractCityFromAddress, toTitleCase, exportReportToWord, exportReportToExcel, exportElementToA4Pdf } from '../utils/cityAndExportUtils';
 
 const toYYYYMMDD = (val) => {
     if (!val) return '';
@@ -42,6 +43,7 @@ const COLUMN_CONFIGS = {
         { key: 'invoice_number', label: 'Invoice #', default: true },
         { key: 'invoice_date', label: 'Invoice Date', default: true },
         { key: 'customer_name', label: 'Customer Name', default: true },
+        { key: 'city', label: 'City', default: true },
         { key: 'customer_mobile', label: 'Customer Mobile', default: false },
         { key: 'customer_email', label: 'Customer Email', default: false },
         { key: 'gstin', label: 'Customer GSTIN', default: true },
@@ -58,6 +60,7 @@ const COLUMN_CONFIGS = {
     'received-invoices': [
         { key: 'invoice_date', label: 'Invoice Date', default: true },
         { key: 'vendor_name', label: 'Vendor / Supplier Name', default: true },
+        { key: 'city', label: 'City', default: true },
         { key: 'vendor_gstin', label: 'Vendor GSTIN', default: true },
         { key: 'vendor_email', label: 'Vendor Email', default: false },
         { key: 'vendor_address', label: 'Vendor Address', default: false },
@@ -74,6 +77,7 @@ const COLUMN_CONFIGS = {
         { key: 'quotation_number', label: 'Quotation #', default: true },
         { key: 'quotation_date', label: 'Date', default: true },
         { key: 'customer_name', label: 'Customer Name', default: true },
+        { key: 'city', label: 'City', default: true },
         { key: 'customer_mobile', label: 'Mobile', default: true },
         { key: 'customer_email', label: 'Email', default: false },
         { key: 'gstin', label: 'GSTIN', default: false },
@@ -88,6 +92,7 @@ const COLUMN_CONFIGS = {
         { key: 'order_number', label: 'Order #', default: true },
         { key: 'order_date', label: 'Order Date', default: true },
         { key: 'customer_name', label: 'Customer Name', default: true },
+        { key: 'city', label: 'City', default: true },
         { key: 'customer_mobile', label: 'Mobile', default: true },
         { key: 'customer_email', label: 'Email', default: false },
         { key: 'gstin', label: 'GSTIN', default: false },
@@ -134,6 +139,7 @@ const Dashboard = () => {
     const [selectedColumns, setSelectedColumns] = useState([]);
     const [generatingPdf, setGeneratingPdf] = useState(false);
     const [exportCustomerFilter, setExportCustomerFilter] = useState('');
+    const [exportCityFilter, setExportCityFilter] = useState('');
     const [exportAddressFilter, setExportAddressFilter] = useState('');
 
     const openExportModal = (type = 'invoices') => {
@@ -143,6 +149,7 @@ const Dashboard = () => {
         const defaults = configs.filter(c => c.default).map(c => c.key);
         setSelectedColumns(defaults);
         setExportCustomerFilter('');
+        setExportCityFilter('');
         setExportAddressFilter('');
         setIsExportModalOpen(true);
     };
@@ -153,6 +160,7 @@ const Dashboard = () => {
         const defaults = configs.filter(c => c.default).map(c => c.key);
         setSelectedColumns(defaults);
         setExportCustomerFilter('');
+        setExportCityFilter('');
         setExportAddressFilter('');
     };
 
@@ -181,6 +189,7 @@ const Dashboard = () => {
             case 'order_date': return item.invoice_date || item.quotation_date || item.order_date ? formatDate(item.invoice_date || item.quotation_date || item.order_date) : '-';
             case 'customer_name': return item.customer_name || '-';
             case 'vendor_name': return item.vendor_name || '-';
+            case 'city': return getItemCity(item, type) || '-';
             case 'customer_mobile': return item.customer_mobile || item.mobile || '-';
             case 'customer_email': return item.customer_email || item.email || '-';
             case 'vendor_email': return item.vendor_email || '-';
@@ -246,6 +255,13 @@ const Dashboard = () => {
         return item.customer_address || item.billing_address || '';
     };
 
+    const getItemCity = (item, type) => {
+        if (!item) return '';
+        if (item.city) return toTitleCase(item.city);
+        const addr = getItemAddress(item, type);
+        return extractCityFromAddress(addr);
+    };
+
     const getRawExportItems = (type) => {
         if (type === 'invoices') return invoices;
         if (type === 'received-invoices') return receivedInvoices;
@@ -257,16 +273,17 @@ const Dashboard = () => {
     const getTargetExportItems = (type) => {
         const raw = getRawExportItems(type);
         const custFilter = exportCustomerFilter.trim().toLowerCase();
-        const addrFilter = exportAddressFilter.trim().toLowerCase();
+        const cityFilter = exportCityFilter.trim().toLowerCase();
 
         return raw.filter(item => {
             if (custFilter) {
                 const pName = getItemPartyName(item, type).toLowerCase();
                 if (!pName.includes(custFilter)) return false;
             }
-            if (addrFilter) {
+            if (cityFilter) {
+                const cName = getItemCity(item, type).toLowerCase();
                 const addr = getItemAddress(item, type).toLowerCase();
-                if (!addr.includes(addrFilter)) return false;
+                if (!cName.includes(cityFilter) && !addr.includes(cityFilter)) return false;
             }
             return true;
         });
@@ -274,13 +291,13 @@ const Dashboard = () => {
 
     const getExportFileBaseName = (type) => {
         let tag = '';
-        if (exportCustomerFilter.trim()) {
-            const cleanCust = exportCustomerFilter.trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25);
-            tag += `_${cleanCust}`;
+        if (exportCityFilter.trim()) {
+            const cleanCity = toTitleCase(exportCityFilter.trim()).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 20);
+            tag += `_City_${cleanCity}`;
         }
-        if (exportAddressFilter.trim()) {
-            const cleanAddr = exportAddressFilter.trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 25);
-            tag += `_${cleanAddr}`;
+        if (exportCustomerFilter.trim()) {
+            const cleanCust = exportCustomerFilter.trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 20);
+            tag += `_${cleanCust}`;
         }
         return `${type.toUpperCase()}_Report${tag}_${getTodayDateString()}`;
     };
@@ -301,24 +318,95 @@ const Dashboard = () => {
             return;
         }
 
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const company = {
+            name: user.office_name || 'NRG JAISRI PRINTERS',
+            address: user.office_address || '',
+            gstin: user.office_gstin || '',
+            mobile: user.office_mobile || '',
+            email: user.office_email || ''
+        };
+
+        const titleText = type === 'invoices' ? 'SALES TAX INVOICES REPORT' :
+                          type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
+                          type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
+
+        const filterNotes = [];
+        if (exportCityFilter.trim()) {
+            filterNotes.push(`City: ${toTitleCase(exportCityFilter.trim())}`);
+        }
+        if (exportCustomerFilter.trim()) {
+            filterNotes.push(`Party: ${exportCustomerFilter.trim()}`);
+        }
+
         const headers = ['S.No', ...activeCols.map(c => c.label)];
         const rows = targetItems.map((item, idx) => {
-            const rowVals = activeCols.map(c => {
-                const val = getCellValue(item, c.key, type);
-                return `"${String(val).replace(/"/g, '""')}"`;
-            });
-            return [idx + 1, ...rowVals].join(',');
+            const rowVals = activeCols.map(c => getCellValue(item, c.key, type));
+            return [idx + 1, ...rowVals];
         });
 
-        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `${getExportFileBaseName(type)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        exportReportToExcel({
+            title: titleText,
+            company,
+            filterNotes,
+            headers,
+            rows,
+            filename: getExportFileBaseName(type)
+        });
+        setIsExportModalOpen(false);
+    };
+
+    const handleRunExportWord = () => {
+        const type = exportReportType;
+        const targetItems = getTargetExportItems(type);
+        if (targetItems.length === 0) {
+            alert('No records available to export matching the selected filters.');
+            return;
+        }
+
+        const config = COLUMN_CONFIGS[type] || [];
+        const activeCols = config.filter(c => selectedColumns.includes(c.key));
+
+        if (activeCols.length === 0) {
+            alert('Please select at least one column to export.');
+            return;
+        }
+
+        const user = JSON.parse(localStorage.getItem('user')) || {};
+        const company = {
+            name: user.office_name || 'NRG JAISRI PRINTERS',
+            address: user.office_address || '',
+            gstin: user.office_gstin || '',
+            mobile: user.office_mobile || '',
+            email: user.office_email || ''
+        };
+
+        const titleText = type === 'invoices' ? 'SALES TAX INVOICES REPORT' :
+                          type === 'received-invoices' ? 'RECEIVED INVOICES (PURCHASES) REPORT' :
+                          type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
+
+        const filterNotes = [];
+        if (exportCityFilter.trim()) {
+            filterNotes.push(`City: <strong>${toTitleCase(exportCityFilter.trim())}</strong>`);
+        }
+        if (exportCustomerFilter.trim()) {
+            filterNotes.push(`Party: <strong>${exportCustomerFilter.trim()}</strong>`);
+        }
+
+        const headers = ['S.No', ...activeCols.map(c => c.label)];
+        const rows = targetItems.map((item, idx) => {
+            const rowVals = activeCols.map(c => getCellValue(item, c.key, type));
+            return [idx + 1, ...rowVals];
+        });
+
+        exportReportToWord({
+            title: titleText,
+            company,
+            filterNotes,
+            headers,
+            rows,
+            filename: getExportFileBaseName(type)
+        });
         setIsExportModalOpen(false);
     };
 
@@ -340,35 +428,34 @@ const Dashboard = () => {
         }
 
         setGeneratingPdf(true);
+        let pdfContainer = null;
         try {
-            const html2canvasModule = await import('html2canvas-pro');
-            const html2canvas = html2canvasModule.default || html2canvasModule;
-            const { jsPDF } = await import('jspdf');
-
             const user = JSON.parse(localStorage.getItem('user')) || {};
             const officeName = user.office_name || 'NRG JAISRI PRINTERS';
             const officeAddress = user.office_address || '';
             const officeGstin = user.office_gstin || '';
             const officeMobile = user.office_mobile || '';
 
-            const pdfContainer = document.createElement('div');
+            const isLandscape = activeCols.length > 5;
+
+            pdfContainer = document.createElement('div');
             pdfContainer.style.position = 'absolute';
             pdfContainer.style.left = '-9999px';
             pdfContainer.style.top = '-9999px';
-            pdfContainer.style.width = '842px';
+            pdfContainer.style.width = isLandscape ? '1120px' : '800px';
             pdfContainer.style.backgroundColor = '#ffffff';
             pdfContainer.style.padding = '24px';
             pdfContainer.style.fontFamily = 'Arial, sans-serif';
             pdfContainer.style.color = '#1f2937';
 
-            const tableHeadersHtml = activeCols.map(c => `<th style="padding: 8px 6px; text-align: left; font-size: 9px; font-weight: bold; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db;">${c.label}</th>`).join('');
+            const tableHeadersHtml = activeCols.map(c => `<th style="padding: 8px 6px; text-align: left; font-size: 9px; font-weight: bold; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; word-break: break-word;">${c.label}</th>`).join('');
 
             const tableRowsHtml = targetItems.map((item, idx) => {
                 const cellsHtml = activeCols.map(c => {
                     const val = getCellValue(item, c.key, type);
-                    return `<td style="padding: 6px; font-size: 9px; color: #111827; border-bottom: 1px solid #e5e7eb;">${val}</td>`;
+                    return `<td style="padding: 6px; font-size: 9px; color: #111827; border-bottom: 1px solid #e5e7eb; word-break: break-word;">${val}</td>`;
                 }).join('');
-                return `<tr><td style="padding: 6px; font-size: 9px; font-weight: bold; color: #4b5563; border-bottom: 1px solid #e5e7eb;">${idx + 1}</td>${cellsHtml}</tr>`;
+                return `<tr><td style="padding: 6px; font-size: 9px; font-weight: bold; color: #4b5563; border-bottom: 1px solid #e5e7eb; text-align: center;">${idx + 1}</td>${cellsHtml}</tr>`;
             }).join('');
 
             const titleText = type === 'invoices' ? 'OUR SALES TAX INVOICES REPORT' :
@@ -376,11 +463,11 @@ const Dashboard = () => {
                               type === 'quotations' ? 'QUOTATIONS REPORT' : 'ORDERS REPORT';
 
             const filterNotes = [];
+            if (exportCityFilter.trim()) {
+                filterNotes.push(`City: <strong>${toTitleCase(exportCityFilter.trim())}</strong>`);
+            }
             if (exportCustomerFilter.trim()) {
                 filterNotes.push(`Party: <strong>${exportCustomerFilter.trim()}</strong>`);
-            }
-            if (exportAddressFilter.trim()) {
-                filterNotes.push(`Address: <strong>${exportAddressFilter.trim()}</strong>`);
             }
 
             pdfContainer.innerHTML = `
@@ -398,10 +485,10 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; table-layout: fixed;">
                     <thead>
                         <tr style="background-color: #f3f4f6;">
-                            <th style="padding: 8px 6px; text-align: left; font-size: 9px; font-weight: bold; color: #374151; border-bottom: 2px solid #d1d5db;">#</th>
+                            <th style="padding: 8px 6px; text-align: center; width: 40px; font-size: 9px; font-weight: bold; color: #374151; border-bottom: 2px solid #d1d5db;">#</th>
                             ${tableHeadersHtml}
                         </tr>
                     </thead>
@@ -413,33 +500,18 @@ const Dashboard = () => {
 
             document.body.appendChild(pdfContainer);
 
-            const canvas = await html2canvas(pdfContainer, { scale: 2, useCORS: true, logging: false });
-            document.body.removeChild(pdfContainer);
+            await exportElementToA4Pdf(pdfContainer, `${getExportFileBaseName(type)}.pdf`, {
+                forcedOrientation: isLandscape ? 'landscape' : 'portrait'
+            });
 
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-            const imgWidth = 297;
-            const pageHeight = 210;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
-            let position = 0;
-
-            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-            }
-
-            pdf.save(`${getExportFileBaseName(type)}.pdf`);
             setIsExportModalOpen(false);
         } catch (err) {
             console.error('PDF export error:', err);
             alert('Failed to generate PDF report.');
         } finally {
+            if (pdfContainer && pdfContainer.parentNode) {
+                pdfContainer.parentNode.removeChild(pdfContainer);
+            }
             setGeneratingPdf(false);
         }
     };
@@ -472,6 +544,109 @@ const Dashboard = () => {
         }
     };
 
+    // Helper to extract sequence number from order/quotation number (e.g. "OD/20102026/05" -> 5, "QT/01" -> 1)
+    const extractDocumentSeq = (docNumber) => {
+        if (!docNumber) return null;
+        const str = String(docNumber).trim();
+        const slashParts = str.split('/');
+        if (slashParts.length > 1) {
+            const lastPart = slashParts[slashParts.length - 1].trim();
+            const n = parseInt(lastPart, 10);
+            if (!isNaN(n)) return n;
+        }
+        const trailing = str.match(/\d+$/);
+        if (trailing) {
+            const n = parseInt(trailing[0], 10);
+            if (!isNaN(n)) return n;
+        }
+        const allDigits = str.replace(/\D/g, '');
+        if (allDigits) {
+            const n = parseInt(allDigits, 10);
+            if (!isNaN(n)) return n;
+        }
+        return null;
+    };
+
+    // Helper to extract date as integer YYYYMMDD
+    const extractDocumentDateNum = (doc, numberField, dateField) => {
+        if (!doc) return 0;
+        const rawDate = doc[dateField];
+        if (rawDate) {
+            const str = String(rawDate).trim();
+            const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (ymd) return Number(`${ymd[1]}${ymd[2]}${ymd[3]}`);
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+                const y = d.getFullYear();
+                const mo = String(d.getMonth() + 1).padStart(2, '0');
+                const da = String(d.getDate()).padStart(2, '0');
+                return Number(`${y}${mo}${da}`);
+            }
+        }
+        const match = String(doc[numberField] || '').match(/(\d{2})(\d{2})(\d{4})/);
+        if (match) {
+            const [, dd, mm, yyyy] = match;
+            return Number(`${yyyy}${mm}${dd}`);
+        }
+        return 0;
+    };
+
+    // Order-wise descending comparator: highest order sequence / latest order first
+    const compareOrdersDesc = (a, b) => {
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+
+        const seqA = extractDocumentSeq(a.order_number);
+        const seqB = extractDocumentSeq(b.order_number);
+        if (seqA !== null && seqB !== null && seqA !== seqB) {
+            return seqB - seqA;
+        }
+
+        const dateA = extractDocumentDateNum(a, 'order_number', 'order_date');
+        const dateB = extractDocumentDateNum(b, 'order_number', 'order_date');
+        if (dateB !== dateA) {
+            return dateB - dateA;
+        }
+
+        const numStrA = String(a.order_number || '').trim();
+        const numStrB = String(b.order_number || '').trim();
+        if (numStrA !== numStrB) {
+            const cmp = numStrB.localeCompare(numStrA, undefined, { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+        }
+
+        return (b.id || 0) - (a.id || 0);
+    };
+
+    // Quotation-wise descending comparator: highest quotation sequence / latest quotation first
+    const compareQuotationsDesc = (a, b) => {
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+
+        const seqA = extractDocumentSeq(a.quotation_number);
+        const seqB = extractDocumentSeq(b.quotation_number);
+        if (seqA !== null && seqB !== null && seqA !== seqB) {
+            return seqB - seqA;
+        }
+
+        const dateA = extractDocumentDateNum(a, 'quotation_number', 'quotation_date');
+        const dateB = extractDocumentDateNum(b, 'quotation_number', 'quotation_date');
+        if (dateB !== dateA) {
+            return dateB - dateA;
+        }
+
+        const numStrA = String(a.quotation_number || '').trim();
+        const numStrB = String(b.quotation_number || '').trim();
+        if (numStrA !== numStrB) {
+            const cmp = numStrB.localeCompare(numStrA, undefined, { numeric: true, sensitivity: 'base' });
+            if (cmp !== 0) return cmp;
+        }
+
+        return (b.id || 0) - (a.id || 0);
+    };
+
     const fetchQuotations = async () => {
         try {
             const user = JSON.parse(localStorage.getItem('user'));
@@ -480,12 +655,8 @@ const Dashboard = () => {
             });
             const data = await res.json();
             if (Array.isArray(data)) {
-                const sorted = [...data].sort((a, b) => {
-                    const numA = parseInt(String(a.quotation_number || '').replace(/\D/g, ''), 10) || 0;
-                    const numB = parseInt(String(b.quotation_number || '').replace(/\D/g, ''), 10) || 0;
-                    if (numA !== numB) return numB - numA;
-                    return (b.id || 0) - (a.id || 0);
-                });
+                // Always sort in strict quotation-wise DESC order
+                const sorted = [...data].sort(compareQuotationsDesc);
                 setQuotations(sorted);
             }
         } catch (err) {
@@ -501,12 +672,8 @@ const Dashboard = () => {
             });
             const data = await res.json();
             if (Array.isArray(data)) {
-                const sorted = [...data].sort((a, b) => {
-                    const numA = parseInt(String(a.order_number || '').replace(/\D/g, ''), 10) || 0;
-                    const numB = parseInt(String(b.order_number || '').replace(/\D/g, ''), 10) || 0;
-                    if (numA !== numB) return numB - numA;
-                    return (b.id || 0) - (a.id || 0);
-                });
+                // Always sort in strict order-wise DESC order (highest order # sequence first)
+                const sorted = [...data].sort(compareOrdersDesc);
                 setOrders(sorted);
             }
         } catch (err) {
@@ -1080,10 +1247,10 @@ const Dashboard = () => {
                     <button
                         onClick={() => openExportModal(activeTab === 'overview' ? 'invoices' : activeTab)}
                         className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3.5 py-2.5 rounded-xl flex items-center justify-center space-x-1.5 transition-all font-bold text-xs shadow-xs"
-                        title="Custom Column Selector & Export PDF / Excel"
+                        title="Custom Column Selector & Export PDF / Excel / Word by City & Customer"
                     >
                         <SlidersHorizontal size={15} />
-                        <span>Export PDF / Excel</span>
+                        <span>Export PDF / Excel / Word</span>
                     </button>
                 </div>
             </div>
@@ -1916,15 +2083,55 @@ const Dashboard = () => {
 
                     {activeTab === 'orders' && (() => {
                         const orderSearchLower = orderSearch.trim().toLowerCase();
-                        const baseOrders = orderPricingFilter === 'MISSING'
+                        const baseOrders = (orderPricingFilter === 'MISSING'
                             ? orders.filter(o => getOrderPricingStatus(o) !== null)
-                            : orders;
+                            : orders).slice().sort(compareOrdersDesc);
 
                         const filteredOrders = orderSearchLower
                             ? baseOrders.filter(order => {
                                 const nameMatch = (order.customer_name || '').toLowerCase().includes(orderSearchLower);
                                 const addressMatch = (order.customer_address || '').toLowerCase().includes(orderSearchLower);
-                                const orderNumMatch = (order.order_number || '').toLowerCase().includes(orderSearchLower);
+
+                                // Precise Order # matching (handles last /00 sequence value like "/00", "/01", "01", "1", "#1", etc.)
+                                const orderNum = (order.order_number || '').trim().toLowerCase();
+                                const slashParts = orderNum.split('/');
+                                const lastSeq = slashParts.length > 1 ? slashParts[slashParts.length - 1].trim() : orderNum;
+                                const lastSeqInt = parseInt(lastSeq, 10);
+
+                                let orderNumMatch = false;
+
+                                if (orderSearchLower.startsWith('/')) {
+                                    // Search starts with slash, e.g. "/00", "/01", "/1"
+                                    const afterSlash = orderSearchLower.slice(1).trim();
+                                    if (!afterSlash) {
+                                        orderNumMatch = true;
+                                    } else {
+                                        const afterSlashInt = parseInt(afterSlash, 10);
+                                        orderNumMatch = lastSeq === afterSlash ||
+                                                        lastSeq.startsWith(afterSlash) ||
+                                                        (!isNaN(afterSlashInt) && !isNaN(lastSeqInt) && afterSlashInt === lastSeqInt);
+                                    }
+                                } else {
+                                    // Clean query from prefix symbols like '#', 'no', 'od'
+                                    const cleanDigits = orderSearchLower.replace(/^(od|order|#|\s)+/i, '').trim();
+                                    const cleanInt = parseInt(cleanDigits, 10);
+
+                                    if (cleanDigits) {
+                                        if (lastSeq === cleanDigits) {
+                                            orderNumMatch = true;
+                                        } else if (!isNaN(cleanInt) && !isNaN(lastSeqInt) && cleanInt === lastSeqInt) {
+                                            orderNumMatch = true;
+                                        } else if (cleanDigits.length >= 2 && lastSeq.includes(cleanDigits)) {
+                                            orderNumMatch = true;
+                                        }
+                                    }
+
+                                    // Full order number or prefix match (e.g. typing "OD/2010" or "OD/20102026/01")
+                                    if (!orderNumMatch && (orderSearchLower.includes('od') || (orderSearchLower.length >= 4 && orderNum.includes(orderSearchLower)))) {
+                                        orderNumMatch = true;
+                                    }
+                                }
+
                                 // item_type is on the order level and also inside items array
                                 const itemTypeMatch = (order.item_type || '').toLowerCase().includes(orderSearchLower);
                                 const itemsMatch = Array.isArray(order.items) && order.items.some(it =>
@@ -1975,7 +2182,7 @@ const Dashboard = () => {
                                         <input
                                             type="text"
                                             id="order-search-input"
-                                            placeholder="Search customer, #, item…"
+                                            placeholder="Search order #, /01, customer, item…"
                                             value={orderSearch}
                                             onChange={e => setOrderSearch(e.target.value)}
                                             className="w-full pl-9 pr-9 py-1.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
@@ -2176,13 +2383,34 @@ const Dashboard = () => {
             {isExportModalOpen && (() => {
                 const rawExportItems = getRawExportItems(exportReportType);
                 const targetExportItems = getTargetExportItems(exportReportType);
-                const uniquePartyNames = Array.from(new Set(
-                    rawExportItems.map(item => getItemPartyName(item, exportReportType).trim()).filter(Boolean)
-                )).sort((a, b) => a.localeCompare(b));
-                const uniqueAddresses = Array.from(new Set(
-                    rawExportItems.map(item => getItemAddress(item, exportReportType).trim()).filter(Boolean)
-                )).sort((a, b) => a.localeCompare(b));
-                const isExportFilterActive = Boolean(exportCustomerFilter.trim() || exportAddressFilter.trim());
+
+                // Deduplicate party names case-insensitively
+                const partyMap = new Map();
+                rawExportItems.forEach(item => {
+                    const raw = getItemPartyName(item, exportReportType).trim();
+                    if (raw) {
+                        const key = raw.toLowerCase();
+                        if (!partyMap.has(key)) {
+                            partyMap.set(key, toTitleCase(raw));
+                        }
+                    }
+                });
+                const uniquePartyNames = Array.from(partyMap.values()).sort((a, b) => a.localeCompare(b));
+
+                // Deduplicate cities case-insensitively into uniform Title Case (e.g. sivakasi, SIVAKASI, SIvakasi -> Sivakasi in 1 place)
+                const cityMap = new Map();
+                rawExportItems.forEach(item => {
+                    const city = getItemCity(item, exportReportType);
+                    if (city) {
+                        const normalized = toTitleCase(city);
+                        const key = normalized.toLowerCase();
+                        if (!cityMap.has(key)) {
+                            cityMap.set(key, normalized);
+                        }
+                    }
+                });
+                const uniqueCities = Array.from(cityMap.values()).sort((a, b) => a.localeCompare(b));
+                const isExportFilterActive = Boolean(exportCustomerFilter.trim() || exportCityFilter.trim());
 
                 return (
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -2194,7 +2422,7 @@ const Dashboard = () => {
                                         <SlidersHorizontal size={20} className="text-primary" />
                                         <span>Custom Report & Column Export</span>
                                     </h2>
-                                    <p className="text-xs text-gray-500 mt-0.5">Filter by customer or address, select columns, and download PDF or Excel.</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Filter with respect to City or Party; choose columns and download as PDF, Excel, or Word.</p>
                                 </div>
                                 <button onClick={() => setIsExportModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100">
                                     <X size={20} />
@@ -2256,12 +2484,12 @@ const Dashboard = () => {
                                     </div>
                                 </div>
 
-                                {/* 2. Filter by Particular Customer or Address */}
+                                {/* 2. Filter with respect to City or Party */}
                                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-3">
                                     <div className="flex flex-wrap justify-between items-center gap-2">
                                         <label className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center space-x-1.5">
                                             <Filter size={14} className="text-primary" />
-                                            <span>2. Filter by Particular Customer or Address (Optional)</span>
+                                            <span>2. Filter with Respect to City or Party (Optional)</span>
                                         </label>
                                         <div className="flex items-center space-x-2">
                                             <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${
@@ -2278,24 +2506,100 @@ const Dashboard = () => {
                                                     type="button"
                                                     onClick={() => {
                                                         setExportCustomerFilter('');
+                                                        setExportCityFilter('');
                                                         setExportAddressFilter('');
                                                     }}
-                                                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 hover:underline"
-                                                    title="Reset customer and address filters"
+                                                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 hover:underline cursor-pointer"
+                                                    title="Reset all filters"
                                                 >
                                                     <RotateCcw size={12} />
-                                                    <span>Clear Filter</span>
+                                                    <span>Clear Filters</span>
                                                 </button>
                                             )}
                                         </div>
                                     </div>
 
+                                    {/* Quick City Pills if cities are detected */}
+                                    {uniqueCities.length > 0 && (
+                                        <div>
+                                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center space-x-1">
+                                                <Building2 size={12} className="text-primary" />
+                                                <span>Quick Select City:</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExportCityFilter('')}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                                                        !exportCityFilter ? 'bg-primary text-white font-bold shadow-xs' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+                                                    }`}
+                                                >
+                                                    All Cities ({rawExportItems.length})
+                                                </button>
+                                                {uniqueCities.map((cityName, idx) => {
+                                                    const count = rawExportItems.filter(item => {
+                                                        const c = getItemCity(item, exportReportType).toLowerCase();
+                                                        const a = getItemAddress(item, exportReportType).toLowerCase();
+                                                        return c.includes(cityName.toLowerCase()) || a.includes(cityName.toLowerCase());
+                                                    }).length;
+                                                    const isSelected = exportCityFilter.trim().toLowerCase() === cityName.toLowerCase();
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => setExportCityFilter(cityName)}
+                                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer flex items-center space-x-1 ${
+                                                                isSelected ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'bg-white border border-gray-200 text-gray-700 hover:bg-indigo-50'
+                                                            }`}
+                                                        >
+                                                            <span>{cityName}</span>
+                                                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/20' : 'bg-gray-100 text-gray-600'}`}>{count}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {/* Customer / Party input */}
+                                        {/* 1. City Filter Input */}
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center space-x-1">
+                                                <Building2 size={13} className="text-indigo-600" />
+                                                <span>Filter by City</span>
+                                            </label>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    list="export-city-options"
+                                                    value={exportCityFilter}
+                                                    onChange={(e) => setExportCityFilter(e.target.value)}
+                                                    placeholder="Type or select city..."
+                                                    className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-7 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-xs"
+                                                />
+                                                {exportCityFilter && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExportCityFilter('')}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer"
+                                                        title="Clear city"
+                                                    >
+                                                        <X size={13} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <datalist id="export-city-options">
+                                                {uniqueCities.map((cityName, i) => (
+                                                    <option key={i} value={cityName} />
+                                                ))}
+                                            </datalist>
+                                        </div>
+
+                                        {/* 2. Customer / Party input */}
                                         <div>
                                             <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center space-x-1">
                                                 <User size={13} className="text-indigo-600" />
-                                                <span>{exportReportType === 'received-invoices' ? 'Vendor / Supplier Name' : 'Customer Name'}</span>
+                                                <span>{exportReportType === 'received-invoices' ? 'Vendor Name' : 'Customer Name'}</span>
                                             </label>
                                             <div className="relative">
                                                 <input
@@ -2310,7 +2614,7 @@ const Dashboard = () => {
                                                     <button
                                                         type="button"
                                                         onClick={() => setExportCustomerFilter('')}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded cursor-pointer"
                                                         title="Clear customer"
                                                     >
                                                         <X size={13} />
@@ -2323,45 +2627,12 @@ const Dashboard = () => {
                                                 ))}
                                             </datalist>
                                         </div>
-
-                                        {/* Address input */}
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-gray-700 mb-1 flex items-center space-x-1">
-                                                <MapPin size={13} className="text-indigo-600" />
-                                                <span>{exportReportType === 'received-invoices' ? 'Vendor Address / City' : 'Customer Address / City'}</span>
-                                            </label>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    list="export-address-options"
-                                                    value={exportAddressFilter}
-                                                    onChange={(e) => setExportAddressFilter(e.target.value)}
-                                                    placeholder="Type or select address/city..."
-                                                    className="w-full bg-white border border-gray-300 rounded-lg pl-3 pr-7 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-xs"
-                                                />
-                                                {exportAddressFilter && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setExportAddressFilter('')}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded"
-                                                        title="Clear address"
-                                                    >
-                                                        <X size={13} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <datalist id="export-address-options">
-                                                {uniqueAddresses.map((addr, i) => (
-                                                    <option key={i} value={addr} />
-                                                ))}
-                                            </datalist>
-                                        </div>
                                     </div>
 
                                     {targetExportItems.length === 0 && (
                                         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-lg flex items-center space-x-2">
                                             <AlertCircle size={14} className="shrink-0 text-amber-600" />
-                                            <span>No records match this customer or address filter. Change or clear the filter to export records.</span>
+                                            <span>No records match this city or customer filter. Change or clear the filter to export records.</span>
                                         </div>
                                     )}
                                 </div>
@@ -2376,7 +2647,7 @@ const Dashboard = () => {
                                             <button
                                                 type="button"
                                                 onClick={selectAllColumns}
-                                                className="text-primary hover:underline font-bold"
+                                                className="text-primary hover:underline font-bold cursor-pointer"
                                             >
                                                 Select All
                                             </button>
@@ -2384,7 +2655,7 @@ const Dashboard = () => {
                                             <button
                                                 type="button"
                                                 onClick={deselectAllColumns}
-                                                className="text-gray-500 hover:underline font-bold"
+                                                className="text-gray-500 hover:underline font-bold cursor-pointer"
                                             >
                                                 Deselect All
                                             </button>
@@ -2415,29 +2686,46 @@ const Dashboard = () => {
                                 <button
                                     type="button"
                                     onClick={() => setIsExportModalOpen(false)}
-                                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-800 transition-colors"
+                                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
                                 >
                                     Cancel
                                 </button>
 
                                 <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                                    {/* Export Excel Button */}
                                     <button
                                         type="button"
                                         onClick={handleRunExportExcel}
                                         disabled={selectedColumns.length === 0 || targetExportItems.length === 0}
-                                        className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                        className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                        title="Download as formatted Excel spreadsheet (.xls)"
                                     >
                                         <FileSpreadsheet size={16} />
-                                        <span>Export Excel ({targetExportItems.length})</span>
+                                        <span>Download Excel ({targetExportItems.length})</span>
                                     </button>
+
+                                    {/* Export Word Button */}
+                                    <button
+                                        type="button"
+                                        onClick={handleRunExportWord}
+                                        disabled={selectedColumns.length === 0 || targetExportItems.length === 0}
+                                        className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                        title="Download as Microsoft Word document (.doc)"
+                                    >
+                                        <FileText size={16} />
+                                        <span>Download Word ({targetExportItems.length})</span>
+                                    </button>
+
+                                    {/* Export PDF Button */}
                                     <button
                                         type="button"
                                         onClick={handleRunExportPDF}
                                         disabled={generatingPdf || selectedColumns.length === 0 || targetExportItems.length === 0}
-                                        className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                        className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                        title="Download as PDF Report (.pdf)"
                                     >
-                                        {generatingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-                                        <span>Export PDF Report ({targetExportItems.length})</span>
+                                        {generatingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                        <span>Download PDF ({targetExportItems.length})</span>
                                     </button>
                                 </div>
                             </div>

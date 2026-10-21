@@ -285,10 +285,11 @@ const CreateQuotation = () => {
     };
 
     const handleAddItem = () => {
+        const newItemId = Date.now() + Math.random();
         setItems(prev => [
             ...prev,
             {
-                id: Date.now() + Math.random(),
+                id: newItemId,
                 item_category: 'Daily Calendar',
                 custom_item_type: '',
                 hsn_sac: '',
@@ -306,6 +307,12 @@ const CreateQuotation = () => {
                 designs_total_qty: 0
             }
         ]);
+        setTimeout(() => {
+            const el = document.getElementById(`quotation-item-${newItemId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 80);
     };
 
     const handleRemoveItem = (index) => {
@@ -740,19 +747,11 @@ const CreateQuotation = () => {
                 <div className="space-y-6 pt-4 border-t border-gray-100">
                     <div className="flex justify-between items-center">
                         <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Item Set Details</h3>
-                        <button
-                            type="button"
-                            onClick={handleAddItem}
-                            className="bg-primary hover:bg-secondary text-white text-xs px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1 transition-all shadow-sm"
-                        >
-                            <Plus size={14} />
-                            <span>Add Item Set</span>
-                        </button>
                     </div>
 
                     <div className="space-y-6">
                         {items.map((item, index) => (
-                            <div key={item.id} className="p-4 md:p-6 bg-gray-50 rounded-2xl border border-gray-200 relative space-y-4 animate-fadeIn">
+                            <div key={item.id} id={`quotation-item-${item.id}`} className="p-4 md:p-6 bg-gray-50 rounded-2xl border border-gray-200 relative space-y-4 animate-fadeIn scroll-mt-20">
                                 {/* Header / Remove Button */}
                                 <div className="flex justify-between items-center border-b border-gray-200 pb-3">
                                     <span className="text-xs font-bold text-primary uppercase">Item #{index + 1} Set</span>
@@ -1046,6 +1045,32 @@ const CreateQuotation = () => {
                                                 onChange={(e) => handleItemChange(index, 'gst_rate', e.target.value)}
                                             />
                                         )}
+                                    </div>
+                                </div>
+
+                                {/* Card Footer Actions: Add Next Item right here without scrolling up */}
+                                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-3 border-t border-gray-200">
+                                    <span className="text-xs text-gray-400 font-medium">Finished with Item #{index + 1}?</span>
+                                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                                        {items.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveItem(index)}
+                                                className="text-red-500 hover:text-red-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg hover:bg-red-50 flex items-center gap-1 transition-colors cursor-pointer"
+                                            >
+                                                <Trash2 size={14} />
+                                                <span>Delete Set #{index + 1}</span>
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleAddItem}
+                                            className="bg-primary hover:bg-secondary text-white text-xs px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-auto sm:ml-0"
+                                            title="Add next item set immediately without scrolling up"
+                                        >
+                                            <Plus size={14} />
+                                            <span>+ Add Next Item Set</span>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
